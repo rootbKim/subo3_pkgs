@@ -105,6 +105,13 @@ void cofactor(float **matrix, float **holder, int r, int c, int n);
 void adjugate(float **matrix, float **adju, int n);
 bool inverseMatrix(float **matrix, float **inverse, int n);
 
+//*************** RBDL variable ***************//
+RigidBodyDynamics::Model* rbdl_model = NULL;                                               //make model but emty
+unsigned int body_BODY_id, body_THIGH_id, body_SHANK_id, body_FOOT_id;	//id have information of the body
+RigidBodyDynamics::Body body_BODY, body_THIGH, body_SHANK, body_FOOT;                    	//make body.
+RigidBodyDynamics::Joint joint_BODY, joint_PELVIS, joint_KNEE, joint_ANKLE;          	//make joint
+RigidBodyDynamics::Math::Matrix3d bodyI_BODY, bodyI_THIGH, bodyI_SHANK, bodyI_FOOT;              //Inertia of Body
+
 namespace gazebo
 {
   class SUBO3_plugin : public ModelPlugin
@@ -285,7 +292,7 @@ namespace gazebo
     std_msgs::Float64 m_goal_R_Ankle_P_J;
     std_msgs::Float64 m_goal_R_Ankle_R_J;
 	
-    VectorXd TmpData = VectorXd::Zero(18);
+    VectorXd TmpData = VectorXd::Zero(50);
     ros::Subscriber server_sub1;
 
     // ************* Structure variables ****************//
@@ -295,16 +302,7 @@ namespace gazebo
     enum ControlMode
     {
       IDLE = 0,
-      BIKE_ready_MODE,
-      BIKE_MODE,
-	    CORONAL_ready_MODE,
-	    CORONAL_MODE,
-	    Pelvis_Center_MODE,
-	    Leg_Center_MODE,
-	    R2L_IK_BIKE_ready_MODE,
-	    R2L_IK_BIKE_MODE,
-	    R2L_IK_RUNNING_ready_MODE,
-	    R2L_IK_RUNNING_MODE
+      GRAVITY_CONTROL,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -312,7 +310,7 @@ namespace gazebo
     // ************* Functions ****************//
     void Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*/);
     void UpdateAlgorithm();
-
+    void RBDL_INIT();
     void GetLinks();
     void GetJoints();
     void InitROSPubSetting();
@@ -326,17 +324,10 @@ namespace gazebo
     void FTsensorTransformation();
 
     void PostureGeneration();
+
     void Init_Pos_Traj();
-    void Bike_ready_Traj();
-    void Bike_Pos_Traj();
-    void Coronal_ready_Traj();
-    void Coronal_Pos_Traj();
-    void Pelvis_Center_Traj();
-    void Leg_Center_Traj();
-    void R2L_IK_Bike_ready_Traj();
-    void R2L_IK_Bike_Pos_Traj();
-    void R2L_IK_Running_ready_Traj();
-    void R2L_IK_Running_Pos_Traj();
+    void Gravity_Cont();
+
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
 
@@ -348,6 +339,8 @@ namespace gazebo
 
 void gazebo::SUBO3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*/) //처음키면 한번 실행되는 함수
 {
+  //RBDL_INIT();
+
   this->model = _model;
   GetLinks();
   GetJoints();
@@ -360,6 +353,44 @@ void gazebo::SUBO3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf
   this->last_update_time = this->model->GetWorld()->GetSimTime();
   this->update_connection = event::Events::ConnectWorldUpdateBegin(boost::bind(&SUBO3_plugin::UpdateAlgorithm, this));
   std::cout << "Load..." << std::endl;
+}
+
+void gazebo::SUBO3_plugin::RBDL_INIT()
+{
+  //********************RBDL********************//
+  rbdl_check_api_version(RBDL_API_VERSION);//check the rdbl version
+  rbdl_model = new RigidBodyDynamics::Model();//declare Model
+  rbdl_model->gravity = RigidBodyDynamics::Math::Vector3d(0., 0., -9.81);//set gravity
+
+  //Inertia of Body
+  bodyI_BODY = RigidBodyDynamics::Math::Matrix3d(0.0016,0.,0., 0.,0.0016,0., 0.,0.,0.0014);
+  bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.0210,0,0, 0,0.0210,0, 0,0,0.0021);
+  bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.0083,0,0, 0,0.0083,0, 0,0,0.0021);
+  bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.0031,0,0, 0,0.0033,0, 0,0,0.0045);
+
+  //set_body_BODY
+	body_BODY = RigidBodyDynamics::Body(1.848, RigidBodyDynamics::Math::Vector3d(-0.035, 0, 0), bodyI_BODY);  // mass, CoM, Inertia
+	joint_BODY = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 0));   // joint type, joint axis
+
+	body_BODY_id = rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), joint_BODY, body_BODY); // front body id(init body = 0), position, add joint, add body
+
+	//set_body_THIGH
+	body_THIGH = RigidBodyDynamics::Body(3.522, RigidBodyDynamics::Math::Vector3d(0, 0, -0.125), bodyI_THIGH);
+	joint_PELVIS = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 0, 1, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0)); // pelvis yaw, pelvis roll, pelvis pitch
+
+	body_THIGH_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_BODY_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(-0.07, 0, 0)), joint_PELVIS, body_THIGH);
+
+	//set_body_SHANK
+	body_SHANK = RigidBodyDynamics::Body(1.4, RigidBodyDynamics::Math::Vector3d(0, 0, -0.125), bodyI_SHANK);
+	joint_KNEE = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 1, 0));
+
+	body_SHANK_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_THIGH_id, RigidBodyDynamics::Math::Xtrans(Vector3d(0, 0, -0.25)), joint_KNEE, body_SHANK);
+
+	//set_body_FOOT
+	body_FOOT = RigidBodyDynamics::Body(1.8, RigidBodyDynamics::Math::Vector3d(0, 0, -0.04), bodyI_FOOT);
+	joint_ANKLE = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0));
+
+	body_FOOT_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_SHANK_id, RigidBodyDynamics::Math::Xtrans(Vector3d(0, 0, -0.25)), joint_ANKLE, body_FOOT);
 }
 
 void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
@@ -467,7 +498,7 @@ void gazebo::SUBO3_plugin::InitROSPubSetting()
   P_goal_L_Ankle_R_J = n.advertise<std_msgs::Float64>("goal_L_Ankle_R_J", 10); 
   
   P_ros_msg = n.advertise<std_msgs::Float64MultiArray>("TmpData", 50); // topicname, queue_size = 50
-  m_ros_msg.data.resize(18);
+  m_ros_msg.data.resize(50);
   server_sub1 = n.subscribe("Ctrl_mode", 1, &gazebo::SUBO3_plugin::Callback1, this);
 }
 
@@ -1640,56 +1671,15 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
     cnt = 0;
     CONTROL_MODE = IDLE;
   }       
-  if (msg->data == 1) //button-6
+  else if (msg->data == 1) //button-6
   {
     cnt = 0;
-    CONTROL_MODE = BIKE_ready_MODE;
+    CONTROL_MODE = GRAVITY_CONTROL;
   }
-  
-  if (msg->data == 2) //button-6
+  else
   {
     cnt = 0;
-    CONTROL_MODE = BIKE_MODE;
-  }
-  if (msg->data == 3) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = CORONAL_ready_MODE;
-  }
-  if (msg->data == 4) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = CORONAL_MODE;
-  }
-  if (msg->data == 5) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = Pelvis_Center_MODE;
-  }
-  if (msg->data == 6) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = Leg_Center_MODE;
-  }
-  if (msg->data == 7) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = R2L_IK_BIKE_ready_MODE;
-  }
-  if (msg->data == 8) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = R2L_IK_BIKE_MODE;
-  }
-  if (msg->data == 9) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = R2L_IK_RUNNING_ready_MODE;
-  }
-  if (msg->data == 10) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = R2L_IK_RUNNING_MODE;
+    CONTROL_MODE = IDLE;
   }
 }
 
@@ -1702,46 +1692,10 @@ void gazebo::SUBO3_plugin::PostureGeneration()
     //std::cout << "Mode is Init_Pos_Mode" << std::endl;
     Init_Pos_Traj();
   }
-  if (CONTROL_MODE == BIKE_ready_MODE) 
+  else if (CONTROL_MODE == GRAVITY_CONTROL) 
   {
 	  test_cnt++;
-    Bike_ready_Traj();
-  }
-  if(CONTROL_MODE == BIKE_MODE)
-  {
-    Bike_Pos_Traj();
-  }
-  if(CONTROL_MODE == CORONAL_ready_MODE)
-  {
-    Coronal_ready_Traj();
-  }
-  if(CONTROL_MODE == CORONAL_MODE)
-  {
-    Coronal_Pos_Traj();
-  }
-  if(CONTROL_MODE == Pelvis_Center_MODE)
-  {
-    Pelvis_Center_Traj();
-  }
-  if(CONTROL_MODE == Leg_Center_MODE)
-  {
-    Leg_Center_Traj();
-  }
-  if(CONTROL_MODE == R2L_IK_BIKE_ready_MODE)
-  {
-	  R2L_IK_Bike_ready_Traj();
-  }
-  if(CONTROL_MODE == R2L_IK_BIKE_MODE)
-  {
-	  R2L_IK_Bike_Pos_Traj();
-  }
-  if(CONTROL_MODE == R2L_IK_RUNNING_ready_MODE)
-  {
-	  R2L_IK_Running_ready_Traj();
-  }
-  if(CONTROL_MODE == R2L_IK_RUNNING_MODE)
-  {
-	  R2L_IK_Running_Pos_Traj();
+    Gravity_Cont();
   }
 }
 
@@ -1811,7 +1765,7 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
   }
 }
 
-void gazebo::SUBO3_plugin::Bike_ready_Traj()
+void gazebo::SUBO3_plugin::Gravity_Cont()
 {
   Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
   Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
@@ -1891,537 +1845,6 @@ void gazebo::SUBO3_plugin::Bike_ready_Traj()
   }
 }
 
-void gazebo::SUBO3_plugin::Bike_Pos_Traj()
-{
-  Kp_q << 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300;
-  Kd_q << 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4;
-  
-  step_time = 2; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
- 
-  for(int i =0; i < 6; i++)
-  {
-    RL_th[i] = Act_RL_th[i];     // 현재위치
-    LL_th[i] = Act_LL_th[i];     // 
-  }
-
-  Ref_RL_PR[0] = 0.15*periodic_function_cos;          // 목표위치
-  Ref_RL_PR[1] = -0.07;//- 10.;
-  Ref_RL_PR[2] = -0.4-0.15*periodic_function_sin; // 
-  Ref_RL_PR[3] = 0*deg2rad;
-  Ref_RL_PR[4] = 0*deg2rad;
-  Ref_RL_PR[5] = 0*deg2rad;
-  Ref_LL_PR[0] = -0.15*periodic_function_cos;
-  Ref_LL_PR[1] = 0.07;//- 10.;
-  Ref_LL_PR[2] = -0.4+0.15*periodic_function_sin; //
-  Ref_LL_PR[3] = 0*deg2rad;
-  Ref_LL_PR[4] = 0*deg2rad;
-  Ref_LL_PR[5] = 0*deg2rad;
-
-  //BRP_RL_IK(Ref_RL_PR, RL_th, RL_th_IK);
-  //BRP_LL_IK(Ref_LL_PR, LL_th, LL_th_IK);
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Ref_L_PR[i] = Ref_RL_PR[i];
-    Ref_L_PR[i+6] = Ref_LL_PR[i];
-  }
-  
-  BRP_12DOF_IK(Ref_L_PR, L_th, L_th_IK);
-  
-  for(int k=0;k<12;k++)
-  {
-    //RL_th[k] = RL_th_IK[k];
-    //LL_th[k] = LL_th_IK[k];
-    L_th[k] = L_th_IK[k];
-  }
-
-  /*
-  for(int i = 0; i < 6; i++) {
-  std::cout << "RL_th_IK [" << i <<"] = " << RL_th_IK[i] << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "LL_th_IK [" << i <<"] = " << LL_th_IK[i] << std::endl;
-  }
-  */
-  for (int i = 0; i < 6; i++)
-  {
-    //joint[i].torque = Kp_q[i]*(RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-    //joint[i+6].torque = Kp_q[i+6]*(LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i+6] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드  
-  }
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::Coronal_ready_Traj()
-{
-  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
-  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
-
-  step_time = 4; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
-  RL_th[0] = 0*deg2rad;     // 현재위치
-  RL_th[1] = 0*deg2rad;
-  RL_th[2] = -30*deg2rad;
-  RL_th[3] = 60*deg2rad;
-  RL_th[4] = -30*deg2rad;
-  RL_th[5] = 0*deg2rad;
-  LL_th[0] = 0*deg2rad;
-  LL_th[1] = 0*deg2rad;
-  LL_th[2] = -30*deg2rad;
-  LL_th[3] = 60*deg2rad;
-  LL_th[4] = -30*deg2rad;
-  LL_th[5] = 0*deg2rad; 
-
-  if(cnt_time <= (step_time/2))
-  {
-    Ref_RL_PR[0] = Act_RL_PR[0] - (Act_RL_PR[0])*0.5*Init_trajectory;          // 목표위치, 골반중심좌표를 원점좌표로 함.
-    Ref_RL_PR[1] = Act_RL_PR[1] - (Act_RL_PR[1] + 0.07)*0.5*Init_trajectory; //- 10.;
-    Ref_RL_PR[2] = Act_RL_PR[2] -(Act_RL_PR[2] + 0.3)*0.5*Init_trajectory; // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-    Ref_RL_PR[3] = 0*deg2rad;
-    Ref_RL_PR[4] = 0*deg2rad;
-    Ref_RL_PR[5] = 0*deg2rad;
-    Ref_LL_PR[0] = Act_LL_PR[0] -(Act_LL_PR[0])*0.5*Init_trajectory;
-    Ref_LL_PR[1] = Act_LL_PR[1] -(Act_LL_PR[1] - 0.07)*0.5*Init_trajectory;//- 10.;
-    Ref_LL_PR[2] = Act_LL_PR[2] -(Act_LL_PR[2] + 0.3)*0.5*Init_trajectory; // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-    Ref_LL_PR[3] = 0*deg2rad;
-    Ref_LL_PR[4] = 0*deg2rad;
-    Ref_LL_PR[5] = 0*deg2rad;
-  }
-
-  //BRP_RL_IK(Ref_RL_PR, RL_th, RL_th_IK);
-  //BRP_LL_IK(Ref_LL_PR, LL_th, LL_th_IK);
-  
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Ref_L_PR[i] = Ref_RL_PR[i];
-    Ref_L_PR[i+6] = Ref_LL_PR[i];
-  }
-
-  BRP_12DOF_IK(Ref_L_PR, L_th, L_th_IK);
-  
-  for(int k=0;k<12;k++)
-  {
-    //RL_th[k] = RL_th_IK[k];
-    //LL_th[k] = LL_th_IK[k];
-    L_th[k] = L_th_IK[k];
-  }
-
-  for (int i = 0; i < 6; i++)
-  {
-    //joint[i].torque = Kp_q[i]*(RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-    //joint[i+6].torque = Kp_q[i+6]*(LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i+6] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드  
-  }
-
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::Coronal_Pos_Traj()
-{
-  Kp_q << 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300;
-  Kd_q << 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4;
-  
-  step_time = 2; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));  
-  
-  for(int i =0; i < 6; i++)
-  {
-    RL_th[i] = Act_RL_th[i];     // 현재위치
-    LL_th[i] = Act_LL_th[i];     // 
-  }
-
-  Ref_RL_PR[0] = 0;          // 목표위치
-  Ref_RL_PR[1] = -0.07-0.15*periodic_function_sin;//
-  Ref_RL_PR[2] = -0.3-0.15*(1-periodic_function_cos); // 
-  Ref_RL_PR[3] = 20*deg2rad*periodic_function_sin;
-  Ref_RL_PR[4] = 20*deg2rad*periodic_function_sin;
-  Ref_RL_PR[5] = 20*deg2rad*periodic_function_sin;
-  Ref_LL_PR[0] = 0;
-  Ref_LL_PR[1] = 0.07-0.15*periodic_function_sin;
-  Ref_LL_PR[2] = -0.3-0.15*(1-periodic_function_cos); //
-  Ref_LL_PR[3] = 20*deg2rad*periodic_function_sin;
-  Ref_LL_PR[4] = 20*deg2rad*periodic_function_sin;
-  Ref_LL_PR[5] = 20*deg2rad*periodic_function_sin;
-  //BRP_RL_IK(Ref_RL_PR, RL_th, RL_th_IK);
-  //BRP_LL_IK(Ref_LL_PR, LL_th, LL_th_IK);
-  
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Ref_L_PR[i] = Ref_RL_PR[i];
-    Ref_L_PR[i+6] = Ref_LL_PR[i];
-  }
-
-  BRP_12DOF_IK(Ref_L_PR, L_th, L_th_IK);
-  for(int k=0;k<12;k++)
-  {
-    //RL_th[k] = RL_th_IK[k];
-    //LL_th[k] = LL_th_IK[k];
-    L_th[k] = L_th_IK[k];
-  }
-  for (int i = 0; i < 6; i++)
-  {
-    //joint[i].torque = Kp_q[i]*(RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-    //joint[i+6].torque = Kp_q[i+6]*(LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i+6] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드  
-  }
-
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::Pelvis_Center_Traj()
-{
-  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
-  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
-  
-  step_time = 2; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
-
-  for(int i =0; i < 6; i++)
-  {
-    RL_th[i] = Act_RL_th[i];     // 현재 조인트위치
-    LL_th[i] = Act_LL_th[i];     // 
-  }
-
-  
-  Ref_RL_PR[0] = 0;          // 목표위치, 골반중심좌표를 원점좌표로 함.
-
-  if(cnt_time < step_time/2)
-  {
-    Ref_RL_PR[1] = Act_RL_PR[1] -(Act_RL_PR[1] + 0.15)*0.5*Init_trajectory; //
-  }
-  else
-  {
-    Ref_RL_PR[1] = -0.15; //
-    Ref_RL_PR[2] = Act_RL_PR[2] -(Act_RL_PR[2] + 0.5)*0.5*Init_trajectory; // 
-    Ref_RL_PR[3] = 0*deg2rad;
-    Ref_RL_PR[4] = 0*deg2rad;
-    Ref_RL_PR[5] = 0*deg2rad;
-    Ref_LL_PR[0] = 0;
-  }
-  
-  if(cnt_time < step_time/2)
-  {
-    Ref_LL_PR[1] = Act_LL_PR[1] -(Act_LL_PR[1] - 0.15)*0.5*Init_trajectory; //
-  }
-  else
-  {
-    Ref_LL_PR[1] = 0.15;
-    Ref_LL_PR[2] = Act_LL_PR[2] -(Act_LL_PR[2] + 0.5)*0.5*Init_trajectory; // 
-    Ref_LL_PR[3] = 0*deg2rad;
-    Ref_LL_PR[4] = 0*deg2rad;
-    Ref_LL_PR[5] = 0*deg2rad;
-  }
-
-  double Pelvis_o_fcp[3] = {0.,0.,0.};
-  
-  BodyRotation(Trans_Ref_RL_PR, Ref_RL_PR, Pelvis_o_fcp, 10*deg2rad*periodic_function_sin,0.,0.); 
-  BodyRotation(Trans_Ref_LL_PR, Ref_LL_PR, Pelvis_o_fcp, 10*deg2rad*periodic_function_sin,0.,0.);
-  
-  //BRP_RL_IK(Ref_RL_PR, RL_th, RL_th_IK);
-  //BRP_LL_IK(Ref_LL_PR, LL_th, LL_th_IK);
-
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Trans_Ref_L_PR[i] = Trans_Ref_RL_PR[i];
-    Trans_Ref_L_PR[i+6] = Trans_Ref_LL_PR[i];
-  }
-
-  BRP_12DOF_IK(Trans_Ref_L_PR, L_th, L_th_IK);
-  for(int k=0;k<12;k++)
-  {
-    //RL_th[k] = RL_th_IK[k];
-    //LL_th[k] = LL_th_IK[k];
-    L_th[k] = L_th_IK[k];
-  }
-
-  for (int i = 0; i < 6; i++)
-  {
-    //joint[i].torque = Kp_q[i]*(RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-    //joint[i+6].torque = Kp_q[i+6]*(LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i+6] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드  
-  }
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::Leg_Center_Traj()
-{
-  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
-  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
-  
-  step_time = 2; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
-
-  for(int i =0; i < 6; i++)
-  {
-    RL_th[i] = Act_RL_th[i];     // 현재 조인트위치
-    LL_th[i] = Act_LL_th[i];     // 
-  }
-
-  
-  Ref_RL_PR[0] = 0;          // 목표위치, 골반중심좌표를 원점좌표로 함.
-  Ref_RL_PR[1] = -0.07; //- 10.;
-  Ref_RL_PR[2] = Act_RL_PR[2]; // 
-  Ref_RL_PR[3] = 0*deg2rad;
-  Ref_RL_PR[4] = 0*deg2rad;
-  Ref_RL_PR[5] = 0*deg2rad;
-  Ref_LL_PR[0] = 0;
-  Ref_LL_PR[1] = 0.07;//- 10.;
-  Ref_LL_PR[2] = Act_LL_PR[2]; // 
-  Ref_LL_PR[3] = 0*deg2rad;
-  Ref_LL_PR[4] = 0*deg2rad;
-  Ref_LL_PR[5] = 0*deg2rad;
-  
-  double Leg_o_fcp[3] = {0.5*(Ref_RL_PR[0]+Ref_LL_PR[0]),0.5*(Ref_RL_PR[1]+Ref_LL_PR[1]),0.5*(Ref_RL_PR[2]+Ref_LL_PR[2])};
-  
-  BodyRotation(Trans_Ref_RL_PR, Ref_RL_PR, Leg_o_fcp, 10*deg2rad*periodic_function_sin,10*deg2rad*periodic_function_sin,0.); 
-  BodyRotation(Trans_Ref_LL_PR, Ref_LL_PR, Leg_o_fcp, 10*deg2rad*periodic_function_sin,10*deg2rad*periodic_function_sin,0.);
-  
-  //BRP_RL_IK(Ref_RL_PR, RL_th, RL_th_IK);
-  //BRP_LL_IK(Ref_LL_PR, LL_th, LL_th_IK);
-
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Trans_Ref_L_PR[i] = Trans_Ref_RL_PR[i];
-    Trans_Ref_L_PR[i+6] = Trans_Ref_LL_PR[i];
-  }
-
-  BRP_12DOF_IK(Trans_Ref_L_PR, L_th, L_th_IK);
-  
-  for(int k=0;k<12;k++)
-  {
-    //RL_th[k] = RL_th_IK[k];
-    //LL_th[k] = LL_th_IK[k];
-    L_th[k] = L_th_IK[k];
-  }
-
-  for (int i = 0; i < 6; i++)
-  {
-    //joint[i].torque = Kp_q[i]*(RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-    //joint[i+6].torque = Kp_q[i+6]*(LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i+6] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드  
-  }
-
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::R2L_IK_Bike_ready_Traj()
-{
-  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
-  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
-
-  step_time = 4; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
-
-  RL_th[0] = 0*deg2rad;     // 현재위치
-  RL_th[1] = 0*deg2rad;
-  RL_th[2] = -30*deg2rad;
-  RL_th[3] = 60*deg2rad;
-  RL_th[4] = -30*deg2rad;
-  RL_th[5] = 0*deg2rad;
-  LL_th[0] = 0*deg2rad;
-  LL_th[1] = 0*deg2rad;
-  LL_th[2] = -30*deg2rad;
-  LL_th[3] = 60*deg2rad;
-  LL_th[4] = -30*deg2rad;
-  LL_th[5] = 0*deg2rad;
-
-  if(cnt_time <= (step_time/2))
-  {
-    Ref_R2L_PR[0] = Act_RL_PR[0] - (Act_RL_PR[0]-0.15)*0.5*Init_trajectory; // 목표위치
-    Ref_R2L_PR[1] = Act_RL_PR[1] - (Act_RL_PR[1] + 0.07)*0.5*Init_trajectory; //- 10.;
-    Ref_R2L_PR[2] = Act_RL_PR[2] -(Act_RL_PR[2] + 0.4)*0.5*Init_trajectory; // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-    Ref_R2L_PR[3] = 0*deg2rad;
-    Ref_R2L_PR[4] = 0*deg2rad;
-    Ref_R2L_PR[5] = 0*deg2rad;
-    Ref_R2L_PR[6] = Act_LL_PR[0] -(Act_LL_PR[0]+0.15)*0.5*Init_trajectory;
-    Ref_R2L_PR[7] = Act_LL_PR[1] -(Act_LL_PR[1] - 0.07)*0.5*Init_trajectory;//- 10.;
-    Ref_R2L_PR[8] = Act_LL_PR[2] -(Act_LL_PR[2] +0.4)*0.5*Init_trajectory; // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-    Ref_R2L_PR[9] = 0*deg2rad;
-    Ref_R2L_PR[10] = 0*deg2rad;
-    Ref_R2L_PR[11] = 0*deg2rad;
-  }
-
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-  }
-
-  BRP_R2L_IK(Ref_R2L_PR, L_th, L_th_IK);
-
-  for(int k=0;k<12;k++)
-  {
-    L_th[k] = L_th_IK[k];
-  }
-
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::R2L_IK_Bike_Pos_Traj()
-{
-  Kp_q << 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300;
-  Kd_q << 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4;
-  
-  step_time = 2; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
- 
-  for(int i =0; i < 6; i++)
-  {
-    RL_th[i] = Act_RL_th[i];     // 현재위치
-    LL_th[i] = Act_LL_th[i];     // 
-  }
-
-  Ref_R2L_PR[0] = 0.15*periodic_function_cos;          // 목표위치
-  Ref_R2L_PR[1] = -0.07;//- 10.;
-  Ref_R2L_PR[2] = -0.4-0.15*periodic_function_sin; // 
-  Ref_R2L_PR[3] = 0*deg2rad;
-  Ref_R2L_PR[4] = 0*deg2rad;
-  Ref_R2L_PR[5] = 0*deg2rad;
-  Ref_R2L_PR[6] = -0.15*periodic_function_cos;
-  Ref_R2L_PR[7] = 0.07;//- 10.;
-  Ref_R2L_PR[8] = -0.4+0.15*periodic_function_sin; //
-  Ref_R2L_PR[9] = 0*deg2rad;
-  Ref_R2L_PR[10] = 0*deg2rad;
-  Ref_R2L_PR[11] = 0*deg2rad;
-
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-  }
-
-  BRP_R2L_IK(Ref_R2L_PR, L_th, L_th_IK);
-
-  for(int k=0;k<12;k++)
-  {
-    L_th[k] = L_th_IK[k];
-  }
-
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
-void gazebo::SUBO3_plugin::R2L_IK_Running_Pos_Traj()
-{
-  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
-  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
-
-  step_time = 2; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
-
-  for(int i =0; i < 6; i++)
-  {
-    RL_th[i] = Act_RL_th[i];     // 현재위치
-    LL_th[i] = Act_LL_th[i];     //
-  }
-
-  Ref_R2L_PR[0] = Act_RL_PR[0] + 0.1*periodic_function_cos;          // 목표위치, 골반중심좌표를 원점좌표로 함.
-  Ref_R2L_PR[1] = Act_RL_PR[1]; //- 10.;
-  Ref_R2L_PR[2] = Act_RL_PR[2] + 0.05*0.5*(1-cos(2*PI/step_time*cnt_time*2)); // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-  Ref_R2L_PR[3] = 0*deg2rad;
-  Ref_R2L_PR[4] = 0*deg2rad;
-  Ref_R2L_PR[5] = 0*deg2rad;
-  Ref_R2L_PR[6] = Act_LL_PR[0]-0.1*periodic_function_cos;
-  Ref_R2L_PR[7] = Act_LL_PR[1];//- 10.;
-  Ref_R2L_PR[8] = Act_LL_PR[2] + 0.05*0.5*(1-cos(2*PI/step_time*cnt_time*2)); // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-  Ref_R2L_PR[9] = 0*deg2rad;
-  Ref_R2L_PR[10] = 0*deg2rad;
-  Ref_R2L_PR[11] = 0*deg2rad;
-
-  for(int i =0; i<6; i++)
-  {
-    Ref_RL_PR[i] = Ref_R2L_PR[i]; Ref_LL_PR[i] = Ref_R2L_PR[i+6];
-  }
-
-  double Leg_o_fcp[3] = {0,0,0};
-
-  for(int i =0; i<3; i++)
-  {
-    Leg_o_fcp[i] = 0.5*(Ref_RL_PR[i]+Ref_LL_PR[i]);
-  }
-
-  BodyRotation(Trans_Ref_RL_PR, Ref_RL_PR, Leg_o_fcp, 5*deg2rad*periodic_function_cos,0.,0.);
-  BodyRotation(Trans_Ref_LL_PR, Ref_LL_PR, Leg_o_fcp, 5*deg2rad*periodic_function_cos,0.,0.);
-
-  for(int i = 0; i < 6; i++)
-  {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Trans_Ref_L_PR[i] = Trans_Ref_RL_PR[i];
-    Trans_Ref_L_PR[i+6] = Trans_Ref_LL_PR[i];
-  }
-
-  BRP_R2L_IK(Trans_Ref_L_PR, L_th, L_th_IK);
-
-  for(int k=0;k<12;k++)
-  {
-    L_th[k] = L_th_IK[k];
-  }
-
-  for (int i = 0; i < 12; i++)
-  {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-  }
-}
-
 void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플로팅
 {
 
@@ -2429,7 +1852,7 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
 {
-  //********************* Data_plot ***************************//
+  //********************* Data_plot - IMU***************************//
   TmpData[0] = BODY_ImuGyro(0);
   TmpData[1] = BODY_ImuGyro(1);
   TmpData[2] = BODY_ImuGyro(2);
@@ -2449,8 +1872,36 @@ void gazebo::SUBO3_plugin::ROSMsgPublish()
   TmpData[16] = R_ImuAcc(1);
   TmpData[17] = R_ImuAcc(2);
   
+  //********************* Data_plot - FT SENSOR***************************//
+  TmpData[18] = L_Force_E(0);
+  TmpData[19] = L_Force_E(1);
+  TmpData[20] = L_Force_E(2);
+  TmpData[21] = L_Torque_E(0);
+  TmpData[22] = L_Torque_E(1);
+  TmpData[23] = L_Torque_E(2);
+  TmpData[24] = R_Force_E(0);
+  TmpData[25] = R_Force_E(1);
+  TmpData[26] = R_Force_E(2);
+  TmpData[27] = R_Torque_E(0);
+  TmpData[28] = R_Torque_E(1);
+  TmpData[29] = R_Torque_E(2);
+
+  //********************* Data_plot - FT SENSOR***************************//
+  TmpData[30] = joint[0].torque;  // L_PELVIS_YAW_JOINT
+  TmpData[31] = joint[1].torque;  // L_PELVIS_ROLL_JOINT
+  TmpData[32] = joint[2].torque;  // L_PELVIS_PITCH_JOINT
+  TmpData[33] = joint[3].torque;  // L_KNEE_PITCH_JOINT
+  TmpData[34] = joint[4].torque;  // L_ANKLE_PITCH_JOINT
+  TmpData[35] = joint[5].torque;  // L_ANKLE_ROLL_JOINT
+  TmpData[36] = joint[6].torque;  // R_PELVIS_YAW_JOINT
+  TmpData[37] = joint[7].torque;  // R_PELVIS_ROLL_JOINT
+  TmpData[38] = joint[8].torque;  // R_PELVIS_PITCH_JOINT
+  TmpData[39] = joint[9].torque;  // R_KNEE_PITCH_JOINT
+  TmpData[40] = joint[10].torque; // R_ANKLE_PITCH_JOINT
+  TmpData[41] = joint[11].torque; // R_ANKLE_ROLL_JOINT
+
   //****************** msg에 데이터 저장 *****************//
-  for (unsigned int i = 0; i < 18; ++i)
+  for (unsigned int i = 0; i < 42; ++i)
   {
       m_ros_msg.data[i] = TmpData[i];
   }
