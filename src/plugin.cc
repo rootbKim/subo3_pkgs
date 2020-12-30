@@ -17,6 +17,7 @@
 #include <ignition/math/Vector3.hh>
 #include <Eigen/Dense>
 #include <fstream>
+#include <rbdl/rbdl.h>
 
 using namespace std;
 using namespace Eigen;
@@ -157,10 +158,10 @@ namespace gazebo
     VectorXd target_tor = VectorXd::Zero(12);
 
     // ************* Joint space variables ****************// 기본이 열벡터임에 주의할것!
-    VectorXd pre_taget_joint_pos = VectorXd::Zero(12);
+    VectorXd pre_target_joint_pos = VectorXd::Zero(12);
     VectorXd target_joint_pos = VectorXd::Zero(12);  // IK pos
     VectorXd target_joint_vel = VectorXd::Zero(12);
-    VectorXd taget_joint_acc = VectorXd::Zero(12);
+    VectorXd target_joint_acc = VectorXd::Zero(12);
     VectorXd actual_joint_pos = VectorXd::Zero(12);
     VectorXd pre_actual_joint_pos = VectorXd::Zero(12);
     VectorXd actual_joint_vel = VectorXd::Zero(12);
@@ -353,19 +354,12 @@ void gazebo::SUBO3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf
   InitROSPubSetting();
   SensorSetting();
   
-  //Kp_q << 49*M2R, 10*M2R, 20*M2R, 23*M2R, 20*M2R, 18*M2R, 42*M2R, 10*M2R, 43.2*M2R, 49.2*M2R, 42*M2R, 33.6*M2R;
-  //Kd_q << 180*M2R,400*M2R, 10*M2R, 100*M2R, 80*M2R, 80*M2R, 155*M2R, 400*M2R, 160*M2R, 250*M2R, 260*M2R, 120*M2R;
-  //cancle_delay << 0.5, 0.5, 0.5, 0.5, 0.5, 0.7, 0.7, 0.3, 0.5, 0.5, 0.9, 0.7; 
-  //error << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-  //Kp_q << 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000, 3000;
-  //Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
   joint = new JOINT[12];
   CONTROL_MODE = IDLE;
 
   this->last_update_time = this->model->GetWorld()->GetSimTime();
   this->update_connection = event::Events::ConnectWorldUpdateBegin(boost::bind(&SUBO3_plugin::UpdateAlgorithm, this));
   std::cout << "Load..." << std::endl;
-  //Inverse_Matrix(4,test_matrix,result_matrix);
 }
 
 void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
@@ -373,23 +367,17 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
   //************************** Time ********************************//
   current_time = this->model->GetWorld()->GetSimTime();
   dt = current_time.Double() - this->last_update_time.Double();
-  
-  
-  //std::cout << "pre_joint2 = " << double(pre_actual_joint_pos[2])*rad2deg << std::endl;
-  
-  
+
   IMUSensorRead();
   FTSensorRead();
   EncoderRead(); //FK 푸는것도 포함.
   PostureGeneration(); // PostureGeneration 하위에 Trajectory 하위에 IK푸는것 포함.
   jointController();
+
   f_cnt++;
   this->last_update_time = current_time;
+
   ROSMsgPublish();
-  //std::cout <<"dt = "<<dt << std::endl; // dt = 0.001; 1kHz
-  //std::cout << "f_cnt" << f_cnt << std::endl; // dt = 0.001; 1kHz
-  //std::cout << "joint2 = " << double(actual_joint_pos[2])*rad2deg << std::endl;
-  //std::cout << "joint_vel2 = " << double(actual_joint_vel[2])*rad2deg << std::endl;
 }
 
 void gazebo::SUBO3_plugin::GetLinks() 
@@ -478,7 +466,7 @@ void gazebo::SUBO3_plugin::InitROSPubSetting()
   P_goal_L_Ankle_P_J = n.advertise<std_msgs::Float64>("goal_L_Ankle_P_J", 10);
   P_goal_L_Ankle_R_J = n.advertise<std_msgs::Float64>("goal_L_Ankle_R_J", 10); 
   
-  P_ros_msg = n.advertise<std_msgs::Float64MultiArray>("TmpData", 50); // topicname, queue_size = 1000
+  P_ros_msg = n.advertise<std_msgs::Float64MultiArray>("TmpData", 50); // topicname, queue_size = 50
   m_ros_msg.data.resize(18);
   server_sub1 = n.subscribe("Ctrl_mode", 1, &gazebo::SUBO3_plugin::Callback1, this);
 }
@@ -1070,7 +1058,6 @@ void BRP_12DOF_IK(double Ref_RP[12], double Init_th[12], double IK_th[12])  // 1
       for(int j = 0; j<6;j++)
       {
         PR[j] = RL_PR[j]; PR[j+6] = LL_PR[j];
-        
       }
       for(int j = 0; j<12; j++)
       {
@@ -1596,6 +1583,7 @@ void gazebo::SUBO3_plugin::jointController()
         joint[i].torque = -8560*3;
     }
   }
+  
   for (unsigned int i = 10; i < 12; ++i)
   {
     if (joint[i].torque >= 8560*3)
@@ -2524,4 +2512,3 @@ void gazebo::SUBO3_plugin::ROSMsgPublish()
   
   P_ros_msg.publish(m_ros_msg);
 }
-
