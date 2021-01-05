@@ -106,11 +106,20 @@ void adjugate(float **matrix, float **adju, int n);
 bool inverseMatrix(float **matrix, float **inverse, int n);
 
 //*************** RBDL variable ***************//
-RigidBodyDynamics::Model* rbdl_model = NULL;                                               //make model but emty
-unsigned int body_BODY_id, body_THIGH_id, body_SHANK_id, body_FOOT_id;	//id have information of the body
-RigidBodyDynamics::Body body_BODY, body_THIGH, body_SHANK, body_FOOT;                    	//make body.
+RigidBodyDynamics::Model* rbdl_model = NULL;                                          //make model but emty
+unsigned int body_BODY_id, body_THIGH_id, body_SHANK_id, body_FOOT_id;	              //id have information of the body
+RigidBodyDynamics::Body body_BODY, body_THIGH, body_SHANK, body_FOOT;                	//make body.
 RigidBodyDynamics::Joint joint_BODY, joint_PELVIS, joint_KNEE, joint_ANKLE;          	//make joint
-RigidBodyDynamics::Math::Matrix3d bodyI_BODY, bodyI_THIGH, bodyI_SHANK, bodyI_FOOT;              //Inertia of Body
+RigidBodyDynamics::Math::Matrix3d bodyI_BODY, bodyI_THIGH, bodyI_SHANK, bodyI_FOOT;   //Inertia of Body
+//declare Q -> Q is theta
+RigidBodyDynamics::Math::VectorNd Q;
+RigidBodyDynamics::Math::VectorNd QDot;
+RigidBodyDynamics::Math::VectorNd QDDot;
+RigidBodyDynamics::Math::VectorNd prevQ;
+RigidBodyDynamics::Math::VectorNd prevQDot;
+RigidBodyDynamics::Math::VectorNd Tau;
+
+int plot_cnt = 0;
 
 namespace gazebo
 {
@@ -339,7 +348,7 @@ namespace gazebo
 
 void gazebo::SUBO3_plugin::Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*/) //처음키면 한번 실행되는 함수
 {
-  //RBDL_INIT();
+  RBDL_INIT();
 
   this->model = _model;
   GetLinks();
@@ -363,34 +372,41 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
   rbdl_model->gravity = RigidBodyDynamics::Math::Vector3d(0., 0., -9.81);//set gravity
 
   //Inertia of Body
-  bodyI_BODY = RigidBodyDynamics::Math::Matrix3d(0.0016,0.,0., 0.,0.0016,0., 0.,0.,0.0014);
-  bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.0210,0,0, 0,0.0210,0, 0,0,0.0021);
-  bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.0083,0,0, 0,0.0083,0, 0,0,0.0021);
-  bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.0031,0,0, 0,0.0033,0, 0,0,0.0045);
-
-  //set_body_BODY
-	body_BODY = RigidBodyDynamics::Body(1.848, RigidBodyDynamics::Math::Vector3d(-0.035, 0, 0), bodyI_BODY);  // mass, CoM, Inertia
-	joint_BODY = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 0));   // joint type, joint axis
-
-	body_BODY_id = rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), joint_BODY, body_BODY); // front body id(init body = 0), position, add joint, add body
-
+  bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.015886,-0.000021,-0.000012, -0.000021,0.014439,-0.000761, -0.000012,-0.000761,0.002793);
+  bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.018454,0.000148,0.001029, 0.000148,0.017892,-0.000337, 0.001029,-0.000337,0.003522);
+  bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.001594,0.000050,-0.000455, 0.000050,0.003143,-0.000103, -0.000455,-0.000103,0.002851);
+  
 	//set_body_THIGH
-	body_THIGH = RigidBodyDynamics::Body(3.522, RigidBodyDynamics::Math::Vector3d(0, 0, -0.125), bodyI_THIGH);
+	body_THIGH = RigidBodyDynamics::Body(1.897, RigidBodyDynamics::Math::Vector3d(0.00334, 0.02006, -0.1641), bodyI_THIGH);
 	joint_PELVIS = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 0, 1, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0)); // pelvis yaw, pelvis roll, pelvis pitch
-
-	body_THIGH_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_BODY_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(-0.07, 0, 0)), joint_PELVIS, body_THIGH);
+	body_THIGH_id = rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), joint_PELVIS, body_THIGH);
 
 	//set_body_SHANK
-	body_SHANK = RigidBodyDynamics::Body(1.4, RigidBodyDynamics::Math::Vector3d(0, 0, -0.125), bodyI_SHANK);
+  body_SHANK = RigidBodyDynamics::Body(2.2, RigidBodyDynamics::Math::Vector3d(-0.007394, 0.008388, -0.18208), bodyI_SHANK);
 	joint_KNEE = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 1, 0));
-
-	body_SHANK_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_THIGH_id, RigidBodyDynamics::Math::Xtrans(Vector3d(0, 0, -0.25)), joint_KNEE, body_SHANK);
+  body_SHANK_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_THIGH_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, -0.25)), joint_KNEE, body_SHANK);
 
 	//set_body_FOOT
-	body_FOOT = RigidBodyDynamics::Body(1.8, RigidBodyDynamics::Math::Vector3d(0, 0, -0.04), bodyI_FOOT);
+  body_FOOT = RigidBodyDynamics::Body(0.854, RigidBodyDynamics::Math::Vector3d(0.012113, 0.004647, -0.068225), bodyI_FOOT);
 	joint_ANKLE = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0));
+	body_FOOT_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_SHANK_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, -0.25)), joint_ANKLE, body_FOOT);
 
-	body_FOOT_id = rbdl_model->RigidBodyDynamics::Model::AddBody(body_SHANK_id, RigidBodyDynamics::Math::Xtrans(Vector3d(0, 0, -0.25)), joint_ANKLE, body_FOOT);
+  //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
+	Q = RigidBodyDynamics::Math::VectorNd::Zero(rbdl_model->dof_count);
+	QDot = RigidBodyDynamics::Math::VectorNd::Zero(rbdl_model->dof_count);
+	QDDot = RigidBodyDynamics::Math::VectorNd::Zero(rbdl_model->dof_count);
+	prevQ = RigidBodyDynamics::Math::VectorNd::Zero(rbdl_model->dof_count);
+	prevQDot = RigidBodyDynamics::Math::VectorNd::Zero(rbdl_model->dof_count);
+  Tau = RigidBodyDynamics::Math::VectorNd::Zero(rbdl_model->dof_count);
+
+  //init Q
+  Q(0) = 0, prevQ(0) = 0, prevQDot(0) = 0;
+  Q(1) = 0, prevQ(1) = 0, prevQDot(1) = 0;
+  Q(2) = 0, prevQ(2) = 0, prevQDot(2) = 0;
+  Q(3) = 0, prevQ(3) = 0, prevQDot(3) = 0;
+  Q(4) = 0, prevQ(4) = 0, prevQDot(4) = 0;
+  Q(5) = 0, prevQ(5) = 0, prevQDot(5) = 0;
+  // Q(6) = 0, prevQ(6) = 0, prevQDot(6) = 0;
 }
 
 void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
@@ -1712,136 +1728,152 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
 
   if(cnt_time <= (step_time/2))
   {
-    Theo_RL_th[0] = 0*deg2rad;
-    Theo_RL_th[1] = 0*deg2rad;
-    Theo_RL_th[2] = -30*0.5*Init_trajectory*deg2rad;
-    Theo_RL_th[3] = 60*0.5*Init_trajectory*deg2rad;
-    Theo_RL_th[4] = -30*0.5*Init_trajectory*deg2rad;
-    Theo_RL_th[5] = 0*deg2rad;
-    Theo_LL_th[0] = 0*deg2rad;
-    Theo_LL_th[1] = 0*deg2rad;
-    Theo_LL_th[2] = -30*0.5*Init_trajectory*deg2rad;
-    Theo_LL_th[3] = 60*0.5*Init_trajectory*deg2rad;
-    Theo_LL_th[4] = -30*0.5*Init_trajectory*deg2rad;
-    Theo_LL_th[5] = 0*deg2rad;
+    Theo_RL_th[0] = 0;
+    Theo_RL_th[1] = 0;
+    Theo_RL_th[2] = 0;
+    Theo_RL_th[3] = 0;
+    Theo_RL_th[4] = 0;
+    Theo_RL_th[5] = 0;
+    Theo_LL_th[0] = 0;
+    Theo_LL_th[1] = 0;
+    Theo_LL_th[2] = 0;
+    Theo_LL_th[3] = 0;
+    Theo_LL_th[4] = 0;
+    Theo_LL_th[5] = 0;
+  }
+  
+  BRP_RL_FK(Theo_RL_th, Theo_RL_PR); // 이론값
+  BRP_LL_FK(Theo_LL_th, Theo_LL_PR);
+  BRP_RL_FK(Act_RL_th, Act_RL_PR); // 실제값
+  BRP_LL_FK(Act_LL_th, Act_LL_PR);
+
+  Q(0) = actual_joint_pos[0];
+  Q(1) = actual_joint_pos[1];
+  Q(2) = actual_joint_pos[2];
+  Q(3) = actual_joint_pos[3];
+  Q(4) = actual_joint_pos[4];
+  Q(5) = actual_joint_pos[5];
+
+  InverseDynamics(*rbdl_model, Q, QDot, QDDot, Tau, NULL);
+
+  for(int i = 0; i < 6; i++)
+  {
+    // QDot(i) = (Q(i) - prevQ(i)) / dt;
+    // QDDot(i) = (QDot(i) - prevQDot(i)) / dt;
+    QDot(i) = 0;
+    QDDot(i) = 0;
+  }
+
+  ///////////////토크 입력////////////////
+  for (int i = 0; i < 6; i++) {
+      joint[i].torque = Kp_q[i]*(Theo_RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드
+      // joint[i].torque = Tau(i);
+      joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드
+  }
+
+  for(int i = 0; i < 6; i++)
+  {
+
+  }
+  plot_cnt++;
+  if(plot_cnt >= 1000)
+  {
+    for(int i = 0; i < 6; i++)
+    {
+    // cout << i << "RBDL = " << Tau(i) << " " << "PDcontrol = " << joint[i-1].torque << endl;
+    cout << i << " = " << actual_joint_pos[i] << ", actual torque = " << joint[i].torque <<", Tau = " << Tau(i) << endl;
+    // cout << "Q " << Q(i) << " QDot " << QDot(i) << " QDDot " << QDDot(i) << " Tau " << Tau(i) << endl;
+    }
+    cout << endl;
+    plot_cnt = 0;
+  }
+
+  prevQ = Q;
+  prevQDot = QDot;
+
+}
+
+void gazebo::SUBO3_plugin::Gravity_Cont()
+{
+  step_time = 2; //주기설정 (초) 변수
+  cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
+  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
+  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
+
+  if(cnt_time <= (step_time/2))
+  {
+    Theo_RL_th[0] = 0;
+    Theo_RL_th[1] = 0;
+    Theo_RL_th[2] = 0;
+    Theo_RL_th[3] = 0;
+    Theo_RL_th[4] = 0;
+    Theo_RL_th[5] = 0;
+    Theo_LL_th[0] = 0;
+    Theo_LL_th[1] = 0;
+    Theo_LL_th[2] = 0;
+    Theo_LL_th[3] = 0;
+    Theo_LL_th[4] = 0;
+    Theo_LL_th[5] = 0;
   }
 
   BRP_RL_FK(Theo_RL_th, Theo_RL_PR); // 이론값
   BRP_LL_FK(Theo_LL_th, Theo_LL_PR);
   BRP_RL_FK(Act_RL_th, Act_RL_PR); // 실제값
   BRP_LL_FK(Act_LL_th, Act_LL_PR);
-/*
-  ///////////// th, PR 값 확인용 ////////////
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Theo_RL_th [" << i <<"] = " << Theo_RL_th[i]*rad2deg << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Theo_LL_th [" << i <<"] = " << Theo_LL_th[i]*rad2deg << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Act_RL_th [" << i <<"] = " << Act_RL_th[i]*rad2deg << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Act_LL_th [" << i <<"] = " << Act_LL_th[i]*rad2deg << std::endl;
-  }
-*/
-  //for(int i = 0; i < 6; i++) {std::cout << "Theo_RL_PR [" << i <<"] = " << Theo_RL_PR[i] << std::endl;}
-/*
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Theo_LL_PR [" << i <<"] = " << Theo_LL_PR[i] << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Act_RL_PR [" << i <<"] = " << Act_RL_PR[i] << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "Act_LL_PR [" << i <<"] = " << Act_LL_PR[i] << std::endl;
-  }
-*/
-  ///////////////토크 입력////////////////
-  for (int i = 0; i < 6; i++)
-  {
-      joint[i].torque = Kp_q[i]*(Theo_RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드
-      joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드        
-  }
-}
 
-void gazebo::SUBO3_plugin::Gravity_Cont()
-{
-  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
-  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
+  Q(0) = actual_joint_pos[0];
+  Q(1) = actual_joint_pos[1];
+  Q(2) = actual_joint_pos[2];
+  Q(3) = actual_joint_pos[3];
+  Q(4) = actual_joint_pos[4];
+  Q(5) = actual_joint_pos[5];
 
-  step_time = 4; //주기설정 (초) 변수
-  cnt_time = cnt*dt; // 한스텝의 시간 설정 0.001초 고정값
-  cnt++;
-  double periodic_function_sin = sin(2*PI/step_time*cnt_time);
-  double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos(2*PI/step_time*cnt_time));
-  RL_th[0] = 0*deg2rad;     // 현재위치
-  RL_th[1] = 0*deg2rad;
-  RL_th[2] = -30*deg2rad;
-  RL_th[3] = 60*deg2rad;
-  RL_th[4] = -30*deg2rad;
-  RL_th[5] = 0*deg2rad;
-  LL_th[0] = 0*deg2rad;
-  LL_th[1] = 0*deg2rad;
-  LL_th[2] = -30*deg2rad;
-  LL_th[3] = 60*deg2rad;
-  LL_th[4] = -30*deg2rad;
-  LL_th[5] = 0*deg2rad; 
+  InverseDynamics(*rbdl_model, Q, QDot, QDDot, Tau, NULL);
 
-  if(cnt_time <= (step_time/2))
-  {
-    Ref_RL_PR[0] = Act_RL_PR[0] - (Act_RL_PR[0]-0.15)*0.5*Init_trajectory;          // 목표위치
-    Ref_RL_PR[1] = Act_RL_PR[1] - (Act_RL_PR[1] + 0.07)*0.5*Init_trajectory; //- 10.;
-    Ref_RL_PR[2] = Act_RL_PR[2] -(Act_RL_PR[2] + 0.4)*0.5*Init_trajectory; // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-    Ref_RL_PR[3] = 0*deg2rad;
-    Ref_RL_PR[4] = 0*deg2rad;
-    Ref_RL_PR[5] = 0*deg2rad;
-    Ref_LL_PR[0] = Act_LL_PR[0] -(Act_LL_PR[0]+0.15)*0.5*Init_trajectory;
-    Ref_LL_PR[1] = Act_LL_PR[1] -(Act_LL_PR[1] - 0.07)*0.5*Init_trajectory;//- 10.;
-    Ref_LL_PR[2] = Act_LL_PR[2] -(Act_LL_PR[2] +0.4)*0.5*Init_trajectory; // + 40*0.5*(1.-cos(M_PI*0.001/duration[1]*time_pass3));
-    Ref_LL_PR[3] = 0*deg2rad;
-    Ref_LL_PR[4] = 0*deg2rad;
-    Ref_LL_PR[5] = 0*deg2rad;
-  }
+  // Q(1) = actual_joint_pos[0];
+  // Q(2) = actual_joint_pos[1];
+  // Q(3) = actual_joint_pos[2];
+  // Q(4) = actual_joint_pos[3];
+  // Q(5) = actual_joint_pos[4];
+  // Q(6) = actual_joint_pos[5];
 
-  //BRP_RL_IK(Ref_RL_PR, RL_th, RL_th_IK);
-  //BRP_LL_IK(Ref_LL_PR, LL_th, LL_th_IK);
   for(int i = 0; i < 6; i++)
   {
-    L_th[i] = RL_th[i];
-    L_th[i+6] = LL_th[i];
-    Ref_L_PR[i] = Ref_RL_PR[i];
-    Ref_L_PR[i+6] = Ref_LL_PR[i];
+    // QDot(i) = (Q(i) - prevQ(i)) / dt;
+    // QDDot(i) = (QDot(i) - prevQDot(i)) / dt;
+    QDot(i) = 0;
+    QDDot(i) = 0;
   }
 
-  BRP_12DOF_IK(Ref_L_PR, L_th, L_th_IK);
-  
-  for(int k=0;k<12;k++)
-  {
-    //RL_th[k] = RL_th_IK[k];
-    //LL_th[k] = LL_th_IK[k];
-    L_th[k] = L_th_IK[k];
-  }
-  
-  /*
-  for(int i = 0; i < 6; i++) {
-  std::cout << "RL_th_IK [" << i <<"] = " << RL_th_IK[i] << std::endl;
-  }
-  for(int i = 0; i < 6; i++) {
-  std::cout << "LL_th_IK [" << i <<"] = " << LL_th_IK[i] << std::endl;
-  }
-  */
+  prevQ = Q;
+  prevQDot = QDot;
 
   for (int i = 0; i < 6; i++)
   {
-    //joint[i].torque = Kp_q[i]*(RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
-    //joint[i+6].torque = Kp_q[i+6]*(LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i+6] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드  
+    // joint[i].torque = Kp_q[i]*(Theo_RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드
+    joint[i].torque = Tau(i);
+    // joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드        
+    joint[i+6].torque = 0;
   }
+  ///////////////토크 입력////////////////
+  // for (int i = 0; i < 2; i++)
+  // {
+  //   joint[i].torque = Tau(i);
+  // }
 
-  for (int i = 0; i < 12; i++)
+  plot_cnt++;
+  if(plot_cnt >= 1000)
   {
-    joint[i].torque = Kp_q[i]*(L_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드    
+    for(int i = 0; i < 6; i++)
+    {
+      // cout << i << "RBDL = " << Tau(i) << " " << "PDcontrol = " << joint[i-1].torque << endl;
+      cout << i << " = " << actual_joint_pos[i] << ", Tau = " << Tau(i) << endl;
+      // cout << "Q " << Q(i) << " QDot " << QDot(i) << " QDDot " << QDDot(i) << " Tau " << Tau(i) << endl;
+    }
+    cout << endl;
+    plot_cnt = 0;
   }
 }
 

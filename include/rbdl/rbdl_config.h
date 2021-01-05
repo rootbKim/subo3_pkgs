@@ -1,6 +1,6 @@
 /*
 * RBDL - Rigid Body Dynamics Library
-* Copyright (c) 2011-2012 Martin Felis <martin.felis@iwr.uni-heidelberg.de>
+* Copyright (c) 2011-2018 Martin Felis <martin@fysx.org>
 *
 * Licensed under the zlib license. See LICENSE for more details.
 */
@@ -8,18 +8,20 @@
 #ifndef RBDL_CONFIG_H
 #define RBDL_CONFIG_H
 
-#define RBDL_API_VERSION (2 << 16) + (5 << 8) + 0
+#define RBDL_API_VERSION (2 << 16) + (6 << 8) + 0
 
 /* #undef RBDL_USE_SIMPLE_MATH */
 /* #undef RBDL_ENABLE_LOGGING */
-#define RBDL_BUILD_REVISION "Process failed because: 지정된 파일을 찾을 수 없습니다"
-/* #undef RBDL_BUILD_TYPE */
+#define RBDL_BUILD_COMMIT "unknown"
 #define RBDL_BUILD_TYPE "unknown"
-#define RBDL_BUILD_BRANCH "Process failed because: 지정된 파일을 찾을 수 없습니다"
+#define RBDL_BUILD_BRANCH "unknown"
+#define RBDL_BUILD_COMPILER_ID "GNU"
+#define RBDL_BUILD_COMPILER_VERSION "5.4.0"
 /* #undef RBDL_BUILD_ADDON_LUAMODEL */
 /* #undef RBDL_BUILD_ADDON_URDFREADER */
-#define RBDL_BUILD_STATIC
+/* #undef RBDL_BUILD_STATIC */
 /* #undef RBDL_USE_ROS_URDF_LIBRARY */
+/* #undef RBDL_BUILD_ADDON_MUSCLE_FITTING */
 
 /* compatibility defines */
 #ifdef _WIN32
@@ -71,5 +73,13 @@
 #  endif // RBDL_EXPORTS
 #  define RBDL_LOCAL RBDL_DLLLOCAL
 # endif // RBDL_BUILD_STATIC
+
+#ifdef __GNUC__
+#  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
+#  define UNUSED_FUNCTION(x) __attribute__((__unused__)) UNUSED_ ## x
+#else
+#  define UNUSED(x) UNUSED_ ## x
+#  define UNUSED_FUNCTION(x) UNUSED_ ## x
+#endif
 
 #endif

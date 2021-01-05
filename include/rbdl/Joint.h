@@ -1,6 +1,6 @@
 /*
  * RBDL - Rigid Body Dynamics Library
- * Copyright (c) 2011-2016 Martin Felis <martin.felis@iwr.uni-heidelberg.de>
+ * Copyright (c) 2011-2018 Martin Felis <martin@fysx.org>
  *
  * Licensed under the zlib license. See LICENSE for more details.
  */
@@ -88,6 +88,8 @@ struct Model;
  *   then Z.</li>
  *   <li>\ref JointTypeEulerYXZ which first rotates around Y, then X, and
  *   then Z.</li>
+ *   <li>\ref JointTypeEulerZXY which first rotates around Z, then X, and
+ *   then Y.</li>
  *   <li>\ref JointTypeSpherical which is a singularity free joint that
  *   uses a Quaternion and the bodies angular velocity (see \ref
  *   joint_singularities for details).</li>
@@ -122,7 +124,7 @@ struct Model;
  * Singularities in the models arise when a joint has three rotational
  * degrees of freedom and the rotations are described by Euler- or
  * Cardan-angles. The singularities present in these rotation
- * parametrizations (e.g. for ZYX Euler-angles for rotations where a 
+ * parametrizations (e.g. for ZYX Euler-angles for rotations where a
  * +/- 90 degrees rotation around the Y-axis) may cause problems in
  * dynamics calculations, such as a rank-deficit joint-space inertia matrix
  * or exploding accelerations in the forward dynamics calculations.
@@ -153,12 +155,12 @@ struct Model;
  * the joint is appended to \f$\mathbf{q}\f$. E.g. for a model with the joints:
  * TX, Spherical, TY, Spherical, the values of \f$\mathbf{q},\mathbf{\bar{q}},\mathbf{\bar{\bar{q}}},\mathbf{\tau}\f$ are:
  *
- 
+
  \f{eqnarray*}
         \mathbf{q} &=& ( q_{tx}, q_{q1,x}, q_{q1,y}, q_{q1,z}, q_{ty}, q_{q2,x}, q_{q2,y}, q_{q2,z}, q_{q1,w}, q_{q2,w})^T \\
   \mathbf{\bar{q}} &=& ( \dot{q}_{tx}, \omega_{1,x}, \omega_{1,y}, \omega_{1,z}, \dot{q}_{ty}, \omega_{2,x}, \omega_{2,y}, \omega_{2,z} )^T \\
   \mathbf{\bar{\bar{q}}} &=& ( \ddot{q}_{tx}, \dot{\omega}_{1,x}, \dot{\omega}_{1,y}, \dot{\omega}_{1,z}, \ddot{q}_{ty}, \dot{\omega}_{2,x}, \dot{\omega}_{2,y}, \dot{\omega}_{2,z} )^T \\
-  \mathbf{\tau} &=& ( \tau_{tx}, \tau_{1,x}, \tau_{1,y}, \tau_{1,z}, \tau_{ty}, \tau_{2,x}, \tau_{2,y}, \tau_{2,z} )^T 
+  \mathbf{\tau} &=& ( \tau_{tx}, \tau_{1,x}, \tau_{1,y}, \tau_{1,z}, \tau_{ty}, \tau_{2,x}, \tau_{2,y}, \tau_{2,z} )^T
   \f}
 
   * \subsection spherical_integration Numerical Integration of Quaternions
@@ -187,16 +189,18 @@ struct Model;
     JointTypeEulerZYX, ///< 3 DoF joint that uses Euler ZYX convention (faster than emulated multi DoF joints).
     JointTypeEulerXYZ, ///< 3 DoF joint that uses Euler XYZ convention (faster than emulated multi DoF joints).
     JointTypeEulerYXZ, ///< 3 DoF joint that uses Euler YXZ convention (faster than emulated multi DoF joints).
+    JointTypeEulerZXY, ///< 3 DoF joint that uses Euler ZXY convention (faster than emulated multi DoF joints).
     JointTypeTranslationXYZ,
     JointTypeFloatingBase, ///< A 6-DoF joint for floating-base (or freeflyer) systems.
     JointTypeFixed, ///< Fixed joint which causes the inertial properties to be merged with the parent body.
+    JointTypeHelical, //1 DoF joint with both rotational and translational motion
     JointType1DoF,
     JointType2DoF, ///< Emulated 2 DoF joint.
     JointType3DoF, ///< Emulated 3 DoF joint.
     JointType4DoF, ///< Emulated 4 DoF joint.
     JointType5DoF, ///< Emulated 5 DoF joint.
     JointType6DoF, ///< Emulated 6 DoF joint.
-    JointTypeCustom, ///< User defined joints of varying size
+    JointTypeCustom ///< User defined joints of varying size
   };
 
 /** \brief Describes a joint relative to the predecessor body.
@@ -215,8 +219,8 @@ struct RBDL_DLLAPI Joint {
     mJointAxes (NULL),
     mJointType (type),
     mDoFCount (0),
-    custom_joint_index(-1),
-    q_index (0) {
+    q_index (0),
+    custom_joint_index(-1) {
       if (type == JointTypeRevoluteX) {
         mDoFCount = 1;
         mJointAxes = new Math::SpatialVector[mDoFCount];
@@ -261,6 +265,14 @@ struct RBDL_DLLAPI Joint {
         mJointAxes[0] = Math::SpatialVector (0., 1., 0., 0., 0., 0.);
         mJointAxes[1] = Math::SpatialVector (1., 0., 0., 0., 0., 0.);
         mJointAxes[2] = Math::SpatialVector (0., 0., 1., 0., 0., 0.);
+      } else if (type == JointTypeEulerZXY) {
+        mDoFCount = 3;
+
+        mJointAxes = new Math::SpatialVector[mDoFCount];
+
+        mJointAxes[0] = Math::SpatialVector (0., 0., 1., 0., 0., 0.);
+        mJointAxes[1] = Math::SpatialVector (1., 0., 0., 0., 0., 0.);
+        mJointAxes[2] = Math::SpatialVector (0., 1., 0., 0., 0., 0.);
       } else if (type == JointTypeTranslationXYZ) {
         mDoFCount = 3;
 
@@ -274,14 +286,15 @@ struct RBDL_DLLAPI Joint {
         // Warning: the memory does not get initialized by this function!
         mDoFCount = type - JointType1DoF + 1;
         mJointAxes = new Math::SpatialVector[mDoFCount];
+  std::cerr << "Warning: uninitalized vector" << std::endl;
       } else if (type == JointTypeCustom) {
         //This constructor cannot be used for a JointTypeCustom because
         //we have no idea what mDoFCount is.
         std::cerr << "Error: Invalid use of Joint constructor Joint(JointType"
-                  << " type). Only allowed when type != JointTypeCustom" 
+                  << " type). Only allowed when type != JointTypeCustom"
                   << std::endl;
         assert(0);
-        abort();                  
+        abort();
       } else if (type != JointTypeFixed && type != JointTypeFloatingBase) {
         std::cerr << "Error: Invalid use of Joint constructor Joint(JointType type). Only allowed when type == JointTypeFixed or JointTypeSpherical." << std::endl;
         assert (0);
@@ -292,23 +305,23 @@ struct RBDL_DLLAPI Joint {
       mJointAxes (NULL),
       mJointType (type),
       mDoFCount (0),
-      custom_joint_index(-1),
-      q_index (0) {
-     if (type == JointTypeCustom) {        
+      q_index (0),
+      custom_joint_index(-1) {
+     if (type == JointTypeCustom) {
         mDoFCount   = degreesOfFreedom;
         mJointAxes  = new Math::SpatialVector[mDoFCount];
-        for(int i=0; i<mDoFCount;++i){
+        for(unsigned int i=0; i<mDoFCount;++i){
           mJointAxes[i] = Math::SpatialVector (0., 0., 0., 0., 0., 0.);
-        }        
+        }
       } else {
         std::cerr << "Error: Invalid use of Joint constructor Joint(JointType"
                   << " type, int degreesOfFreedom). Only allowed when "
-                  << "type  == JointTypeCustom." 
+                  << "type  == JointTypeCustom."
                   << std::endl;
         assert (0);
         abort();
       }
-    }  
+    }
   Joint (const Joint &joint) :
     mJointType (joint.mJointType),
     mDoFCount (joint.mDoFCount),
@@ -373,8 +386,8 @@ struct RBDL_DLLAPI Joint {
       // make sure we have a unit axis
       mJointAxes[0].set (
           joint_axis[0],
-          joint_axis[1], 
-          joint_axis[2], 
+          joint_axis[1],
+          joint_axis[2],
           0., 0., 0.
           );
 
@@ -396,8 +409,6 @@ struct RBDL_DLLAPI Joint {
    * The motion subspaces are of the format:
    * \f[ (r_x, r_y, r_z, t_x, t_y, t_z) \f]
    *
-   * \note So far only pure rotations or pure translations are supported.
-   *
    * \param axis_0 Motion subspace for axis 0
    */
   Joint (
@@ -412,8 +423,12 @@ struct RBDL_DLLAPI Joint {
       mJointType = JointTypeRevoluteY;
     } else if (axis_0 == Math::SpatialVector(0., 0., 1., 0., 0., 0.)) {
       mJointType = JointTypeRevoluteZ;
+    } else if (axis_0[0] == 0 &&
+         axis_0[1] == 0 &&
+         axis_0[2] == 0) {
+      mJointType = JointTypePrismatic;
     } else {
-      mJointType = JointType1DoF;
+      mJointType = JointTypeHelical;
     }
     validate_spatial_axis (mJointAxes[0]);
   }
@@ -593,9 +608,6 @@ struct RBDL_DLLAPI Joint {
    * axis that might not be intended.
    */
   bool validate_spatial_axis (Math::SpatialVector &axis) {
-    if (fabs(axis.norm() - 1.0) > 1.0e-8) {
-      std::cerr << "Warning: joint axis is not unit!" << std::endl;
-    }
 
     bool axis_rotational = false;
     bool axis_translational = false;
@@ -603,37 +615,42 @@ struct RBDL_DLLAPI Joint {
     Math::Vector3d rotation (axis[0], axis[1], axis[2]);
     Math::Vector3d translation (axis[3], axis[4], axis[5]);
 
-    if (fabs(translation.norm()) < 1.0e-8)
+    if (fabs(rotation.norm()) > 1.0e-8)
       axis_rotational = true;
 
-    if (fabs(rotation.norm()) < 1.0e-8)
+    if (fabs(translation.norm()) > 1.0e-8)
       axis_translational = true;
 
-    return axis_rotational || axis_translational;
+    if(axis_rotational && rotation.norm() - 1.0 > 1.0e-8) {
+      std::cerr << "Warning: joint rotation axis is not unit!" << std::endl;
+    }
+
+    if(axis_translational && translation.norm() - 1.0 > 1.0e-8) {
+      std::cerr << "Warning: joint translation axis is not unit!" << std::endl;
+    }
+
+    return axis_rotational != axis_translational;
   }
 
   /// \brief The spatial axes of the joint
   Math::SpatialVector* mJointAxes;
-  /// \brief Type of joint 
+  /// \brief Type of joint
   JointType mJointType;
   /// \brief Number of degrees of freedom of the joint. Note: CustomJoints
   // have here a value of 0 and their actual numbers of degrees of freedom
   // can be obtained using the CustomJoint structure.
   unsigned int mDoFCount;
   unsigned int q_index;
-  unsigned int custom_joint_index;
+  int custom_joint_index;
 };
 
 /** \brief Computes all variables for a joint model
  *
- *	By appropriate modification of this function all types of joints can be
- *	modeled. See RBDA Section 4.4 for details.
+ *  By appropriate modification of this function all types of joints can be
+ *  modeled. See RBDA Section 4.4 for details.
  *
  * \param model    the rigid body model
  * \param joint_id the id of the joint we are interested in. This will be used to determine the type of joint and also the entries of \f[ q, \dot{q} \f].
- * \param XJ       the joint transformation (output)
- * \param v_J      joint velocity (output)
- * \param c_J      joint acceleration for rhenomic joints (output)
  * \param q        joint state variables
  * \param qdot     joint velocity variables
  */
@@ -659,7 +676,7 @@ void jcalc_X_lambda_S (
     );
 
 struct RBDL_DLLAPI CustomJoint {
-  CustomJoint() 
+  CustomJoint()
   { }
   virtual ~CustomJoint() {};
 

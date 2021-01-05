@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 2.8.3)
 project(subo3_pkgs)
 
 find_package(Eigen3 REQUIRED)
-
 find_package(catkin REQUIRED COMPONENTS
   gazebo_ros
   roscpp
@@ -12,10 +11,10 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(gazebo REQUIRED)
 link_directories(${GAZEBO_LIBRARY_DIRS})
-include_directories(${Boost_INCLUDE_DIR} ${catkin_INCLUDE_DIRS} ${GAZEBO_INCLUDE_DIRS} ${PCL_LIBRARY_DIRS} ${EIGEN3_INCLUDE_DIR})
+include_directories(${Boost_INCLUDE_DIR} ${catkin_INCLUDE_DIRS} ${GAZEBO_INCLUDE_DIRS} ${PCL_LIBRARY_DIRS} ${EIGEN3_INCLUDE_DIR} ${RBDL_INCLUDE_DIR})
 
-add_library(${PROJECT_NAME} src/plugin.cc)
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES})
+add_library(${PROJECT_NAME} src/plugin.cc src/Constraints.cc src/Dynamics.cc src/Joint.cc src/Kinematics.cc src/Logging.cc src/Model.cc src/rbdl_mathutils.cc src/rbdl_utils.cc src/rbdl_version.cc)
+target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${GAZEBO_LIBRARIES} ${RBDL_LIBRARY})
 
 
 include_directories(
@@ -26,7 +25,7 @@ include_directories(
 
 catkin_package(
  INCLUDE_DIRS include
- LIBRARIES rbdl
+ LIBRARIES ${PROJECT_NAME} rbdl
  DEPENDS gazebo_ros roscpp rospy std_msgs
 )
 
