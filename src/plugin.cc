@@ -18,6 +18,7 @@
 #include <Eigen/Dense>
 #include <fstream>
 #include <rbdl/rbdl.h>
+#include <subo3_pkgs/CTCMsg.h>
 
 using namespace std;
 using namespace Eigen;
@@ -106,6 +107,7 @@ void adjugate(float **matrix, float **adju, int n);
 bool inverseMatrix(float **matrix, float **inverse, int n);
 
 //*************** RBDL variable ***************//
+RigidBodyDynamics::Math::VectorNd Kp, Kv;
 //Left_Leg
 RigidBodyDynamics::Model* L_rbdl_model = NULL;                                          //make model but emty
 unsigned int L_body_Base_id, L_body_PELVIS_1_id, L_body_PELVIS_2_id, L_body_THIGH_id, L_body_SHANK_id, L_body_FOOT_id, L_body_End_id;	              //id have information of the body
@@ -326,6 +328,9 @@ namespace gazebo
 	
     VectorXd TmpData = VectorXd::Zero(50);
     ros::Subscriber server_sub1;
+    ros::Subscriber server_sub2;
+
+    int start_flag = 0;
 
     // ************* Structure variables ****************//
     ENDPOINT L_LEG, R_LEG;
@@ -336,6 +341,7 @@ namespace gazebo
       IDLE = 0,
       GRAVITY_CONTROL,
       CTC_CONTROL,
+      CTC_CONTROL_POS,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -354,6 +360,7 @@ namespace gazebo
     void jointController();
     void ROSMsgPublish();
     void Callback1(const std_msgs::Int32Ptr &msg);
+    void msgCallback(const subo3_pkgs::CTCMsg::ConstPtr &msg);
     void FTsensorTransformation();
 
     void PostureGeneration();
@@ -363,6 +370,7 @@ namespace gazebo
     void Init_Pos_Traj();
     void Gravity_Cont();
     void CTC_Control();
+    void CTC_Control_Pos();
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
@@ -373,12 +381,12 @@ namespace gazebo
     FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
     FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
     FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
-    FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
-    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
-    FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
-    FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
-    FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
-    FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
+    // FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
+    // FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    // FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
+    // FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
+    // FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
+    // FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
 
     void Print(void); //Print function
 
@@ -408,6 +416,9 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
 {
   //********************RBDL********************//
   rbdl_check_api_version(RBDL_API_VERSION);//check the rdbl version
+
+  Kp = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  Kv = RigidBodyDynamics::Math::VectorNd::Zero(6);
 
   //RBDL_MODEL
   L_rbdl_model = new RigidBodyDynamics::Model();//declare Model
@@ -667,6 +678,7 @@ void gazebo::SUBO3_plugin::InitROSPubSetting()
   P_ros_msg = n.advertise<std_msgs::Float64MultiArray>("TmpData", 50); // topicname, queue_size = 50
   m_ros_msg.data.resize(50);
   server_sub1 = n.subscribe("Ctrl_mode", 1, &gazebo::SUBO3_plugin::Callback1, this);
+  server_sub2 = n.subscribe("CTC_msg", 100, &gazebo::SUBO3_plugin::msgCallback, this);
 }
 
 void gazebo::SUBO3_plugin::SensorSetting()
@@ -1904,13 +1916,14 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
 
 void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 {
-  RigidBodyDynamics::Math::VectorNd Kp, Kv, QDot;
-  Kp = RigidBodyDynamics::Math::VectorNd::Zero(6);
-  Kv = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  RigidBodyDynamics::Math::VectorNd QDot;
   QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
-  
-  Kp << 200, 200, 200, 750, 750, 750;
-  Kv << 30, 30, 30, 50, 50, 50;
+
+  if(start_flag == 0)
+  {
+    Kp << 200, 200, 200, 750, 750, 750;
+    Kv << 30, 30, 30, 50, 50, 50;
+  }
 
   //*********************Left Leg**********************//
   RigidBodyDynamics::Math::VectorNd L_X_CTC;
@@ -1985,9 +1998,9 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
   R_torque_CTC = R_I_Matrix * R_q_CTC + R_NE_Tau;
 
   cout << "Left Leg" << endl;
-  cout << L_Foot_Pos << endl << endl;
+  cout << L_Des_X << " : " << L_Foot_Pos << endl << endl;
   cout << "Right Leg" << endl;
-  cout << R_Foot_Pos << endl << endl;
+  cout << R_Des_X << " : " << R_Foot_Pos << endl << endl;
 }
 
 void gazebo::SUBO3_plugin::jointController()
@@ -2083,10 +2096,49 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
     cnt = 0;
     CONTROL_MODE = CTC_CONTROL;
   }
+  else if (msg->data == 3) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = CTC_CONTROL_POS;
+  }
   else
   {
     cnt = 0;
     CONTROL_MODE = IDLE;
+  }
+}
+
+void gazebo::SUBO3_plugin::msgCallback(const subo3_pkgs::CTCMsg::ConstPtr &msg)
+{
+  start_flag = msg->TF;
+  if(start_flag == 1)
+  {
+    L_Des_X(0) = msg->L_Des_X_x;L_Des_X(1) = msg->L_Des_X_y;L_Des_X(2) = msg->L_Des_X_z;
+    L_Des_X(3) = msg->L_Des_X_rll;L_Des_X(4) = msg->L_Des_X_pit;L_Des_X(5) = msg->L_Des_X_yaw;
+    L_Des_XDot(0) = msg->L_Des_XDot_x;L_Des_XDot(1) = msg->L_Des_XDot_y;L_Des_XDot(2) = msg->L_Des_XDot_z;
+    L_Des_XDot(3) = msg->L_Des_XDot_rll;L_Des_XDot(4) = msg->L_Des_XDot_pit;L_Des_XDot(5) = msg->L_Des_XDot_yaw;
+    L_Des_XDDot(0) = msg->L_Des_XDDot_x;L_Des_XDDot(1) = msg->L_Des_XDDot_y;L_Des_XDDot(2) = msg->L_Des_XDDot_z;
+    L_Des_XDDot(3) = msg->L_Des_XDDot_rll;L_Des_XDDot(4) = msg->L_Des_XDDot_pit;L_Des_XDDot(5) = msg->L_Des_XDDot_yaw;
+
+    R_Des_X(0) = msg->R_Des_X_x;R_Des_X(1) = msg->R_Des_X_y;R_Des_X(2) = msg->R_Des_X_z;
+    R_Des_X(3) = msg->R_Des_X_rll;R_Des_X(4) = msg->R_Des_X_pit;R_Des_X(5) = msg->R_Des_X_yaw;
+    R_Des_XDot(0) = msg->R_Des_XDot_x;R_Des_XDot(1) = msg->R_Des_XDot_y;R_Des_XDot(2) = msg->R_Des_XDot_z;
+    R_Des_XDot(3) = msg->R_Des_XDot_rll;R_Des_XDot(4) = msg->R_Des_XDot_pit;R_Des_XDot(5) = msg->R_Des_XDot_yaw;
+    R_Des_XDDot(0) = msg->R_Des_XDDot_x;R_Des_XDDot(1) = msg->R_Des_XDDot_y;R_Des_XDDot(2) = msg->R_Des_XDDot_z;
+    R_Des_XDDot(3) = msg->R_Des_XDDot_rll;R_Des_XDDot(4) = msg->R_Des_XDDot_pit;R_Des_XDDot(5) = msg->R_Des_XDDot_yaw;
+
+    Kp(0) = msg->Kp0;
+    Kp(1) = msg->Kp1;
+    Kp(2) = msg->Kp2;
+    Kp(3) = msg->Kp3;
+    Kp(4) = msg->Kp4;
+    Kp(5) = msg->Kp5;
+    Kv(0) = msg->Kv0;
+    Kv(1) = msg->Kv1;
+    Kv(2) = msg->Kv2;
+    Kv(3) = msg->Kv3;
+    Kv(4) = msg->Kv4;
+    Kv(5) = msg->Kv5;
   }
 }
 
@@ -2108,6 +2160,11 @@ void gazebo::SUBO3_plugin::PostureGeneration()
   {
 	  test_cnt++;
     CTC_Control();
+  }
+  else if (CONTROL_MODE == CTC_CONTROL_POS) 
+  {
+	  test_cnt++;
+    CTC_Control_Pos();
   }
 }
 
@@ -2257,6 +2314,73 @@ void gazebo::SUBO3_plugin::CTC_Control()
     joint[i].torque = L_torque_CTC(i);
     joint[i+6].torque = R_torque_CTC(i);
   }
+
+  // fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", L_Des_X(0), L_Des_X(1), L_Des_X(2), L_Des_X(3), L_Des_X(4), L_Des_X(5));
+  // fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Foot_Pos(0), L_Foot_Pos(1), L_Foot_Pos(2), L_Foot_Pos(3), L_Foot_Pos(4), L_Foot_Pos(5));
+  // fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", L_torque_CTC(0), L_torque_CTC(1), L_torque_CTC(2), L_torque_CTC(3), L_torque_CTC(4), L_torque_CTC(5));
+
+  // fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", R_Des_X(0), R_Des_X(1), R_Des_X(2), R_Des_X(3), R_Des_X(4), R_Des_X(5));
+  // fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", R_Foot_Pos(0), R_Foot_Pos(1), R_Foot_Pos(2), R_Foot_Pos(3), R_Foot_Pos(4), R_Foot_Pos(5));
+  // fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", R_torque_CTC(0), R_torque_CTC(1), R_torque_CTC(2), R_torque_CTC(3), R_torque_CTC(4), R_torque_CTC(5));
+}
+
+void gazebo::SUBO3_plugin::CTC_Control_Pos()
+{
+  L_Q(1) = actual_joint_pos[0];
+  L_Q(2) = actual_joint_pos[1];
+  L_Q(3) = actual_joint_pos[2];
+  L_Q(4) = actual_joint_pos[3];
+  L_Q(5) = actual_joint_pos[4];
+  L_Q(6) = actual_joint_pos[5];
+
+  R_Q(1) = actual_joint_pos[6];
+  R_Q(2) = actual_joint_pos[7];
+  R_Q(3) = actual_joint_pos[8];
+  R_Q(4) = actual_joint_pos[9];
+  R_Q(5) = actual_joint_pos[10];
+  R_Q(6) = actual_joint_pos[11];
+
+  for(int i = 0; i < 6; i++)
+  {
+    L_QDot(i+1) = (L_Q(i+1) - L_prevQ(i+1)) / dt;
+    L_QDDot(i+1) = (L_QDot(i+1) - L_prevQDot(i+1)) / dt;
+    R_QDot(i+1) = (R_Q(i+1) - R_prevQ(i+1)) / dt;
+    R_QDDot(i+1) = (R_QDot(i+1) - R_prevQDot(i+1)) / dt;
+  }
+
+  L_prevQ = L_Q;
+  L_prevQDot = L_QDot;
+  R_prevQ = R_Q;
+  R_prevQDot = R_QDot;
+
+  // Target Pos, Pos Dot, Pos DDot
+  if(start_flag == 0)
+  {
+    L_Des_X(0) = -0.00065;  L_Des_X(1) = 0.07;  L_Des_X(2) = -0.6184;  L_Des_X(3) = 0;  L_Des_X(4) = 0;  L_Des_X(5) = 0;
+    L_Des_XDot(0) = 0;  L_Des_XDot(1) = 0;  L_Des_XDot(2) = 0;  L_Des_XDot(3) = 0;  L_Des_XDot(4) = 0;  L_Des_XDot(5) = 0;
+    L_Des_XDDot(0) = 0;  L_Des_XDDot(1) = 0;  L_Des_XDDot(2) = 0;  L_Des_XDDot(3) = 0;  L_Des_XDDot(4) = 0;  L_Des_XDDot(5) = 0;
+
+    R_Des_X(0) = -0.00065;  R_Des_X(1) = -0.07;  R_Des_X(2) = -0.6184;  R_Des_X(3) = 0;  R_Des_X(4) = 0;  R_Des_X(5) = 0;
+    R_Des_XDot(0) = 0;  R_Des_XDot(1) = 0;  R_Des_XDot(2) = 0;  R_Des_XDot(3) = 0;  R_Des_XDot(4) = 0;  R_Des_XDot(5) = 0;
+    R_Des_XDDot(0) = 0;  R_Des_XDDot(1) = 0;  R_Des_XDDot(2) = 0;  R_Des_XDDot(3) = 0;  R_Des_XDDot(4) = 0;  R_Des_XDDot(5) = 0;
+  }
+
+  Calc_Feedback_Pos();  // calculate the feedback
+  Calc_CTC_Torque();    // calculate the CTC torque
+
+  for (int i = 0; i < 6; i++)
+  {
+    joint[i].torque = L_torque_CTC(i);
+    joint[i+6].torque = R_torque_CTC(i);
+  }
+
+  // fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", L_Des_X(0), L_Des_X(1), L_Des_X(2), L_Des_X(3), L_Des_X(4), L_Des_X(5));
+  // fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Foot_Pos(0), L_Foot_Pos(1), L_Foot_Pos(2), L_Foot_Pos(3), L_Foot_Pos(4), L_Foot_Pos(5));
+  // fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", L_torque_CTC(0), L_torque_CTC(1), L_torque_CTC(2), L_torque_CTC(3), L_torque_CTC(4), L_torque_CTC(5));
+
+  // fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", R_Des_X(0), R_Des_X(1), R_Des_X(2), R_Des_X(3), R_Des_X(4), R_Des_X(5));
+  // fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", R_Foot_Pos(0), R_Foot_Pos(1), R_Foot_Pos(2), R_Foot_Pos(3), R_Foot_Pos(4), R_Foot_Pos(5));
+  // fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", R_torque_CTC(0), R_torque_CTC(1), R_torque_CTC(2), R_torque_CTC(3), R_torque_CTC(4), R_torque_CTC(5));
 }
 
 void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플로팅
