@@ -108,10 +108,10 @@ bool inverseMatrix(float **matrix, float **inverse, int n);
 //*************** RBDL variable ***************//
 //Left_Leg
 RigidBodyDynamics::Model* L_rbdl_model = NULL;                                          //make model but emty
-unsigned int L_body_THIGH_id, L_body_SHANK_id, L_body_FOOT_id;	              //id have information of the body
-RigidBodyDynamics::Body L_body_THIGH, L_body_SHANK, L_body_FOOT;                	//make body.
-RigidBodyDynamics::Joint L_joint_PELVIS, L_joint_KNEE, L_joint_ANKLE;          	//make joint
-RigidBodyDynamics::Math::Matrix3d L_bodyI_THIGH, L_bodyI_SHANK, L_bodyI_FOOT;   //Inertia of Body
+unsigned int L_body_Base_id, L_body_PELVIS_1_id, L_body_PELVIS_2_id, L_body_THIGH_id, L_body_SHANK_id, L_body_FOOT_id, L_body_End_id;	              //id have information of the body
+RigidBodyDynamics::Body L_body_Base, L_body_PELVIS_1, L_body_PELVIS_2, L_body_THIGH, L_body_SHANK, L_body_FOOT, L_body_End;                	//make body.
+RigidBodyDynamics::Joint L_joint_Base, L_joint_PELVIS_YAW, L_joint_PELVIS_ROLL, L_joint_PELVIS_PITCH, L_joint_KNEE, L_joint_ANKLE, L_joint_End;          	//make joint
+RigidBodyDynamics::Math::Matrix3d L_bodyI_Base, L_bodyI_PELVIS_1, L_bodyI_PELVIS_2, L_bodyI_THIGH, L_bodyI_SHANK, L_bodyI_FOOT, L_bodyI_End;   //Inertia of Body
 //declare Q -> Q is theta
 RigidBodyDynamics::Math::VectorNd L_Q;
 RigidBodyDynamics::Math::VectorNd L_QDot;
@@ -119,13 +119,17 @@ RigidBodyDynamics::Math::VectorNd L_QDDot;
 RigidBodyDynamics::Math::VectorNd L_prevQ;
 RigidBodyDynamics::Math::VectorNd L_prevQDot;
 RigidBodyDynamics::Math::VectorNd L_Tau;
+RigidBodyDynamics::Math::VectorNd L_Foot_Pos, L_Foot_Pos_dot;
+RigidBodyDynamics::Math::MatrixNd L_A_Jacobian, L_prev_A_Jacobian, L_A_Jacobian_dot, Inv_L_A_Jacobian;
+RigidBodyDynamics::Math::VectorNd L_Des_X, L_Des_XDot, L_Des_XDDot, torque_CTC;
+RigidBodyDynamics::Math::VectorNd L_Kp, L_Kv;
 
 //Right_Leg
 RigidBodyDynamics::Model* R_rbdl_model = NULL;                                          //make model but emty
-unsigned int R_body_THIGH_id, R_body_SHANK_id, R_body_FOOT_id;	              //id have information of the body
-RigidBodyDynamics::Body R_body_THIGH, R_body_SHANK, R_body_FOOT;                	//make body.
-RigidBodyDynamics::Joint R_joint_PELVIS, R_joint_KNEE, R_joint_ANKLE;          	//make joint
-RigidBodyDynamics::Math::Matrix3d R_bodyI_THIGH, R_bodyI_SHANK, R_bodyI_FOOT;   //Inertia of Body
+unsigned int R_body_Base_id, R_body_PELVIS_1_id, R_body_PELVIS_2_id, R_body_THIGH_id, R_body_SHANK_id, R_body_FOOT_id, R_body_End_id;	              //id have information of the body
+RigidBodyDynamics::Body R_body_Base, R_body_PELVIS_1, R_body_PELVIS_2, R_body_THIGH, R_body_SHANK, R_body_FOOT, R_body_End;                	//make body.
+RigidBodyDynamics::Joint R_joint_Base, R_joint_PELVIS_YAW, R_joint_PELVIS_ROLL, R_joint_PELVIS_PITCH, R_joint_KNEE, R_joint_ANKLE, R_joint_End;          	//make joint
+RigidBodyDynamics::Math::Matrix3d R_bodyI_Base, R_bodyI_PELVIS_1, R_bodyI_PELVIS_2, R_bodyI_THIGH, R_bodyI_SHANK, R_bodyI_FOOT, R_bodyI_End;   //Inertia of Body
 //declare Q -> Q is theta
 RigidBodyDynamics::Math::VectorNd R_Q;
 RigidBodyDynamics::Math::VectorNd R_QDot;
@@ -133,8 +137,12 @@ RigidBodyDynamics::Math::VectorNd R_QDDot;
 RigidBodyDynamics::Math::VectorNd R_prevQ;
 RigidBodyDynamics::Math::VectorNd R_prevQDot;
 RigidBodyDynamics::Math::VectorNd R_Tau;
+RigidBodyDynamics::Math::Vector3d R_Foot_Pos;
+RigidBodyDynamics::Math::Vector3d R_Foot_Dir;
 
-int plot_cnt = 0;
+ENDPOINT Left_LEG, Right_LEG;
+
+int plot_cnt = 0, plot_cnt2 = 0;
 
 namespace gazebo
 {
@@ -327,6 +335,7 @@ namespace gazebo
     {
       IDLE = 0,
       GRAVITY_CONTROL,
+      CTC_CONTROL,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -349,13 +358,27 @@ namespace gazebo
 
     void PostureGeneration();
 
+    void Calc_Feedback_Pos();
+    void Calc_CTC_Torque();
     void Init_Pos_Traj();
     void Gravity_Cont();
+    void CTC_Control();
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
 
-    FILE* tmpdata=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata.txt","w");
+    FILE* tmpdata0=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata0.txt","w");
+    FILE* tmpdata1=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata1.txt","w");
+    FILE* tmpdata2=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata2.txt","w");
+    FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
+    FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
+    FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
+    FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
+    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
+    FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
+    FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
+    FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
 
     void Print(void); //Print function
 
@@ -392,19 +415,42 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
   R_rbdl_model = new RigidBodyDynamics::Model();//declare Model
   R_rbdl_model->gravity = RigidBodyDynamics::Math::Vector3d(0., 0., -9.81);//set gravity
 
+  L_bodyI_Base = RigidBodyDynamics::Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+	L_body_Base = RigidBodyDynamics::Body(0, RigidBodyDynamics::Math::Vector3d(0, 0, 0), L_bodyI_Base);
+	L_joint_Base = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 0));
+	L_body_Base_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), L_joint_Base, L_body_Base);
+
+  R_bodyI_Base = RigidBodyDynamics::Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+	R_body_Base = RigidBodyDynamics::Body(0, RigidBodyDynamics::Math::Vector3d(0, 0, 0), R_bodyI_Base);
+	R_joint_Base = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 0));
+	R_body_Base_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), R_joint_Base, R_body_Base);
+
   //********************LEFT_LEG********************//
   //Inertia of Body
+  L_bodyI_PELVIS_1 = RigidBodyDynamics::Math::Matrix3d(0.000419,-0.000005,0.000133, -0.000005,0.001001,-0.000018, 0.000133,-0.000018,0.000820);
+  L_bodyI_PELVIS_2 = RigidBodyDynamics::Math::Matrix3d(0.000262,-0.000050,0.000001, -0.000050,0.000727,-0.000002, 0.000001,-0.000002,0.000757);
   L_bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.015886,-0.000021,-0.000012, -0.000021,0.014439,-0.000761, -0.000012,-0.000761,0.002793);
   L_bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.018454,0.000148,0.001029, 0.000148,0.017892,-0.000337, 0.001029,-0.000337,0.003522);
   L_bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.001594,0.000050,-0.000455, 0.000050,0.003143,-0.000103, -0.000455,-0.000103,0.002851);
-  
-	//set_body_THIGH
-	L_body_THIGH = RigidBodyDynamics::Body(1.897, RigidBodyDynamics::Math::Vector3d(0.00334, 0.02006, -0.16412), L_bodyI_THIGH);
-	L_joint_PELVIS = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 0, 1, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0)); // pelvis yaw, pelvis roll, pelvis pitch
-	L_body_THIGH_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), L_joint_PELVIS, L_body_THIGH);
+  L_bodyI_End = RigidBodyDynamics::Math::Matrix3d(0,0,0,0,0,0,0,0,0);
 
+  //set_body_PELVIS_1
+	L_body_PELVIS_1 = RigidBodyDynamics::Body(0.530103, RigidBodyDynamics::Math::Vector3d(-0.026622, -0.006227, -0.028069), L_bodyI_PELVIS_1);
+	L_joint_PELVIS_YAW = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 1)); // pelvis yaw
+	L_body_PELVIS_1_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(L_body_Base_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0.07, 0)), L_joint_PELVIS_YAW, L_body_PELVIS_1);
+	
+  //set_body_PELVIS2
+	L_body_PELVIS_2 = RigidBodyDynamics::Body(0.565726, RigidBodyDynamics::Math::Vector3d(-0.029274, -0.002813, -0.000043), L_bodyI_PELVIS_2);
+	L_joint_PELVIS_ROLL = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(1, 0, 0)); // pelvis roll
+	L_body_PELVIS_2_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(L_body_PELVIS_1_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(-0.00025, 0, -0.074)), L_joint_PELVIS_ROLL, L_body_PELVIS_2);
+
+  //set_body_THIGH
+	L_body_THIGH = RigidBodyDynamics::Body(1.897, RigidBodyDynamics::Math::Vector3d(0.003474, 0.02006, -0.16412), L_bodyI_THIGH);
+	L_joint_PELVIS_PITCH = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 1, 0)); // pelvis pitch
+	L_body_THIGH_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(L_body_PELVIS_2_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), L_joint_PELVIS_PITCH, L_body_THIGH);
+  
 	//set_body_SHANK
-  L_body_SHANK = RigidBodyDynamics::Body(2.2, RigidBodyDynamics::Math::Vector3d(-0.007394, 0.008388, -0.18208), L_bodyI_SHANK);
+  L_body_SHANK = RigidBodyDynamics::Body(2.2, RigidBodyDynamics::Math::Vector3d(-0.007394, 0.00838, -0.18208), L_bodyI_SHANK);
 	L_joint_KNEE = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 1, 0));
   L_body_SHANK_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(L_body_THIGH_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(-0.00013, 0, -0.25)), L_joint_KNEE, L_body_SHANK);
 
@@ -413,6 +459,11 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
 	L_joint_ANKLE = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0));
 	L_body_FOOT_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(L_body_SHANK_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, -0.25)), L_joint_ANKLE, L_body_FOOT);
 
+  //set_body_End
+	L_body_End = RigidBodyDynamics::Body(0, RigidBodyDynamics::Math::Vector3d(0, 0, 0), L_bodyI_End);
+	L_joint_End = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 0));
+	L_body_End_id = L_rbdl_model->RigidBodyDynamics::Model::AddBody(L_body_FOOT_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, -0.1105)), L_joint_End, L_body_End);
+
   //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
 	L_Q = RigidBodyDynamics::Math::VectorNd::Zero(L_rbdl_model->dof_count);
 	L_QDot = RigidBodyDynamics::Math::VectorNd::Zero(L_rbdl_model->dof_count);
@@ -420,39 +471,67 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
 	L_prevQ = RigidBodyDynamics::Math::VectorNd::Zero(L_rbdl_model->dof_count);
 	L_prevQDot = RigidBodyDynamics::Math::VectorNd::Zero(L_rbdl_model->dof_count);
   L_Tau = RigidBodyDynamics::Math::VectorNd::Zero(L_rbdl_model->dof_count);
+  L_Foot_Pos = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_Foot_Pos_dot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_A_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  L_prev_A_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  L_A_Jacobian_dot = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  Inv_L_A_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  L_Des_X = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_Des_XDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_Des_XDDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_Kp = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_Kv = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  torque_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
 
   //init Q
   L_Q(0) = 0, L_prevQ(0) = 0, L_prevQDot(0) = 0;
-  L_Q(1) = 0, L_prevQ(1) = 0, L_prevQDot(1) = 0;
-  L_Q(2) = 0, L_prevQ(2) = 0, L_prevQDot(2) = 0;
-  L_Q(3) = 0, L_prevQ(3) = 0, L_prevQDot(3) = 0;
-  L_Q(4) = 0, L_prevQ(4) = 0, L_prevQDot(4) = 0;
-  L_Q(5) = 0, L_prevQ(5) = 0, L_prevQDot(5) = 0;
+  L_Q(1) = 0, L_prevQ(1) = 0, L_prevQDot(1) = 0;  // pelvis yaw
+  L_Q(2) = 0, L_prevQ(2) = 0, L_prevQDot(2) = 0;  // pelvis roll
+  L_Q(3) = 0, L_prevQ(3) = 0, L_prevQDot(3) = 0;  // pelvis pitch
+  L_Q(4) = 0, L_prevQ(4) = 0, L_prevQDot(4) = 0;  // knee pitch
+  L_Q(5) = 0, L_prevQ(5) = 0, L_prevQDot(5) = 0;  // ankle pitch
+  L_Q(6) = 0, L_prevQ(6) = 0, L_prevQDot(6) = 0;  // ankle roll
+  L_Q(7) = 0, L_prevQ(7) = 0, L_prevQDot(7) = 0; 
 
   //********************RIGHT_LEG********************//
   //Inertia of Body
-  // R_bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.015886,0.000021,-0.000012, 0.000021,0.014439,0.000761, -0.000012,0.000761,0.002793);
-  // R_bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.018454,-0.000148,0.001029, -0.000148,0.017892,0.000337, 0.001029,0.000337,0.003522);
-  // R_bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.001594,-0.000050,-0.000455, -0.000050,0.003143,0.000103, -0.000455,0.000103,0.002851);
-
-  R_bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.015873,0.000021,-0.000012, 0.000021,0.014427,0.000763, -0.000012,0.000763,0.002792);
-  R_bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.018445,-0.000150,0.001032, -0.000150,0.017882,0.000338, 0.001032,0.000338,0.003517);
-  R_bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.001612,-0.000051,-0.000457, -0.000051,0.003189,0.000104, -0.000457,0.000104,0.002903);
+  R_bodyI_PELVIS_1 = RigidBodyDynamics::Math::Matrix3d(0.000419,0.000005,0.000133, 0.000005,0.001001,0.000018, 0.000133,0.000018,0.000820);
+  R_bodyI_PELVIS_2 = RigidBodyDynamics::Math::Matrix3d(0.000262,0.000050,0.000001, 0.000050,0.000727,0.000002, 0.000001,0.000002,0.000757);
+  R_bodyI_THIGH = RigidBodyDynamics::Math::Matrix3d(0.015886,0.000021,-0.000012, 0.000021,0.014439,0.000761, -0.000012,0.000761,0.002793);
+  R_bodyI_SHANK = RigidBodyDynamics::Math::Matrix3d(0.018454,-0.000148,0.001029, -0.000148,0.017892,0.000337, 0.001029,0.000337,0.003522);
+  R_bodyI_FOOT = RigidBodyDynamics::Math::Matrix3d(0.001594,-0.000050,-0.000455, -0.000050,0.003143,0.000103, -0.000455,0.000103,0.002851);
+  R_bodyI_End = RigidBodyDynamics::Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+  
+  //set_body_PELVIS_1
+	R_body_PELVIS_1 = RigidBodyDynamics::Body(0.530103, RigidBodyDynamics::Math::Vector3d(-0.026622, 0.006227, -0.028069), R_bodyI_PELVIS_1);
+	R_joint_PELVIS_YAW = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 1)); // pelvis yaw
+	R_body_PELVIS_1_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(R_body_Base_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, -0.07, 0)), R_joint_PELVIS_YAW, R_body_PELVIS_1);
+	
+  //set_body_PELVIS2
+	R_body_PELVIS_2 = RigidBodyDynamics::Body(0.565726, RigidBodyDynamics::Math::Vector3d(-0.029274, 0.002813, -0.000043), R_bodyI_PELVIS_2);
+	R_joint_PELVIS_ROLL = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(1, 0, 0)); // pelvis roll
+	R_body_PELVIS_2_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(R_body_PELVIS_1_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(-0.00025, 0, -0.074)), R_joint_PELVIS_ROLL, R_body_PELVIS_2);
 
 	//set_body_THIGH
-	R_body_THIGH = RigidBodyDynamics::Body(1.896, RigidBodyDynamics::Math::Vector3d(0.00335, -0.02005, -0.16411), R_bodyI_THIGH);
-	R_joint_PELVIS = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 0, 1, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0)); // pelvis yaw, pelvis roll, pelvis pitch
-	R_body_THIGH_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(0, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), R_joint_PELVIS, R_body_THIGH);
+	R_body_THIGH = RigidBodyDynamics::Body(1.897, RigidBodyDynamics::Math::Vector3d(0.00335, -0.02006, -0.16411), R_bodyI_THIGH);
+	R_joint_PELVIS_PITCH = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 1, 0)); //pelvis pitch
+	R_body_THIGH_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(R_body_PELVIS_2_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, 0)), R_joint_PELVIS_PITCH, R_body_THIGH);
 
 	//set_body_SHANK
-  R_body_SHANK = RigidBodyDynamics::Body(2.197, RigidBodyDynamics::Math::Vector3d(-0.00742, -0.00838, -0.18203), R_bodyI_SHANK);
+  R_body_SHANK = RigidBodyDynamics::Body(2.2, RigidBodyDynamics::Math::Vector3d(-0.00742, -0.00838, -0.18203), R_bodyI_SHANK);
 	R_joint_KNEE = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 1, 0));
   R_body_SHANK_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(R_body_THIGH_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(-0.00013, 0, -0.25)), R_joint_KNEE, R_body_SHANK);
 
 	//set_body_FOOT
-  R_body_FOOT = RigidBodyDynamics::Body(0.861, RigidBodyDynamics::Math::Vector3d(0.01206, -0.00475, -0.068478), R_bodyI_FOOT);
+  R_body_FOOT = RigidBodyDynamics::Body(0.854, RigidBodyDynamics::Math::Vector3d(0.01206, -0.00475, -0.068478), R_bodyI_FOOT);
 	R_joint_ANKLE = RigidBodyDynamics::Joint(RigidBodyDynamics::Math::SpatialVector(0, 1, 0, 0, 0, 0), RigidBodyDynamics::Math::SpatialVector(1, 0, 0, 0, 0, 0));
 	R_body_FOOT_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(R_body_SHANK_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, -0.25)), R_joint_ANKLE, R_body_FOOT);
+
+  //set_body_End
+	R_body_End = RigidBodyDynamics::Body(0, RigidBodyDynamics::Math::Vector3d(0, 0, 0), R_bodyI_End);
+	R_joint_End = RigidBodyDynamics::Joint(RigidBodyDynamics::JointType::JointTypeRevolute, RigidBodyDynamics::Math::Vector3d(0, 0, 0));
+	R_body_End_id = R_rbdl_model->RigidBodyDynamics::Model::AddBody(R_body_FOOT_id, RigidBodyDynamics::Math::Xtrans(RigidBodyDynamics::Math::Vector3d(0, 0, -0.1105)), R_joint_End, R_body_End);
 
   //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
 	R_Q = RigidBodyDynamics::Math::VectorNd::Zero(R_rbdl_model->dof_count);
@@ -464,11 +543,13 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
 
   //init Q
   R_Q(0) = 0, R_prevQ(0) = 0, R_prevQDot(0) = 0;
-  R_Q(1) = 0, R_prevQ(1) = 0, R_prevQDot(1) = 0;
-  R_Q(2) = 0, R_prevQ(2) = 0, R_prevQDot(2) = 0;
-  R_Q(3) = 0, R_prevQ(3) = 0, R_prevQDot(3) = 0;
-  R_Q(4) = 0, R_prevQ(4) = 0, R_prevQDot(4) = 0;
-  R_Q(5) = 0, R_prevQ(5) = 0, R_prevQDot(5) = 0;
+  R_Q(1) = 0, R_prevQ(1) = 0, R_prevQDot(1) = 0;  // pelvis yaw
+  R_Q(2) = 0, R_prevQ(2) = 0, R_prevQDot(2) = 0;  // pelvis roll
+  R_Q(3) = 0, R_prevQ(3) = 0, R_prevQDot(3) = 0;  // pelvis pitch
+  R_Q(4) = 0, R_prevQ(4) = 0, R_prevQDot(4) = 0;  // knee pitch
+  R_Q(5) = 0, R_prevQ(5) = 0, R_prevQDot(5) = 0;  // ankle pitch
+  R_Q(6) = 0, R_prevQ(6) = 0, R_prevQDot(6) = 0;  // ankle roll
+  R_Q(7) = 0, R_prevQ(7) = 0, R_prevQDot(7) = 0;
 }
 
 void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
@@ -653,20 +734,17 @@ void gazebo::SUBO3_plugin::FTSensorRead()
 
 void gazebo::SUBO3_plugin::FTsensorTransformation()
 {
-  MatrixXd C_I_roll(3, 3), C_I_pitch(3, 3);
   MatrixXd L_PELVIS_YAW(3, 3), L_PELVIS_ROLL(3, 3), L_PELVIS_PITCH(3, 3), L_KNEE_PITCH(3, 3), L_ANKLE_PITCH(3, 3), L_ANKLE_ROLL(3, 3);
   MatrixXd R_PELVIS_YAW(3, 3), R_PELVIS_ROLL(3, 3), R_PELVIS_PITCH(3, 3), R_KNEE_PITCH(3, 3), R_ANKLE_PITCH(3, 3), R_ANKLE_ROLL(3, 3);
   
-  C_I_roll << 1, 0, 0, 0, cos(base_info.rot.GetRoll()), -sin(base_info.rot.GetRoll()), 0, sin(base_info.rot.GetRoll()), cos(base_info.rot.GetRoll()); // roll(x축회전) 행렬
-  C_I_pitch << cos(base_info.rot.GetPitch()), 0, sin(base_info.rot.GetPitch()), 0, 1, 0, -sin(base_info.rot.GetPitch()), 0, cos(base_info.rot.GetPitch()); // pitch(y축회전) 변환행렬
-
   L_PELVIS_YAW << cos(actual_joint_pos[0]), -sin(actual_joint_pos[0]), 0, sin(actual_joint_pos[0]), cos(actual_joint_pos[0]), 0, 0, 0, 1;
   L_PELVIS_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[1]), -sin(actual_joint_pos[1]), 0, sin(actual_joint_pos[1]), cos(actual_joint_pos[1]);
   L_PELVIS_PITCH << cos(actual_joint_pos[2]), 0, sin(actual_joint_pos[2]), 0, 1, 0, -sin(actual_joint_pos[2]), 0, cos(actual_joint_pos[2]);
   L_KNEE_PITCH << cos(actual_joint_pos[3]), 0, sin(actual_joint_pos[3]), 0, 1, 0, -sin(actual_joint_pos[3]), 0, cos(actual_joint_pos[3]);
   L_ANKLE_PITCH << cos(actual_joint_pos[4]), 0, sin(actual_joint_pos[4]), 0, 1, 0, -sin(actual_joint_pos[4]), 0, cos(actual_joint_pos[4]);
   L_ANKLE_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[5]), -sin(actual_joint_pos[5]), 0, sin(actual_joint_pos[5]), cos(actual_joint_pos[5]);
-  L_LEG.T_matrix = C_I_roll * C_I_pitch * L_PELVIS_YAW * L_PELVIS_ROLL * L_PELVIS_PITCH * L_KNEE_PITCH * L_ANKLE_ROLL;
+  L_LEG.T_matrix = L_PELVIS_YAW * L_PELVIS_ROLL * L_PELVIS_PITCH * L_KNEE_PITCH * L_ANKLE_PITCH * L_ANKLE_ROLL;
+  Left_LEG.T_matrix = L_PELVIS_YAW * L_PELVIS_ROLL * L_PELVIS_PITCH * L_KNEE_PITCH * L_ANKLE_PITCH * L_ANKLE_ROLL;
 
   R_PELVIS_YAW << cos(actual_joint_pos[6]), -sin(actual_joint_pos[6]), 0, sin(actual_joint_pos[6]), cos(actual_joint_pos[6]), 0, 0, 0, 1;
   R_PELVIS_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[7]), -sin(actual_joint_pos[7]), 0, sin(actual_joint_pos[7]), cos(actual_joint_pos[7]);
@@ -674,7 +752,8 @@ void gazebo::SUBO3_plugin::FTsensorTransformation()
   R_KNEE_PITCH << cos(actual_joint_pos[9]), 0, sin(actual_joint_pos[9]), 0, 1, 0, -sin(actual_joint_pos[9]), 0, cos(actual_joint_pos[9]);
   R_ANKLE_PITCH << cos(actual_joint_pos[10]), 0, sin(actual_joint_pos[10]), 0, 1, 0, -sin(actual_joint_pos[10]), 0, cos(actual_joint_pos[10]);
   R_ANKLE_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[11]), -sin(actual_joint_pos[11]), 0, sin(actual_joint_pos[11]), cos(actual_joint_pos[11]);
-  R_LEG.T_matrix = C_I_roll * C_I_pitch * R_PELVIS_YAW * R_PELVIS_ROLL * R_PELVIS_PITCH * R_KNEE_PITCH * R_ANKLE_ROLL;  
+  R_LEG.T_matrix = R_PELVIS_YAW * R_PELVIS_ROLL * R_PELVIS_PITCH * R_KNEE_PITCH * R_ANKLE_PITCH * R_ANKLE_ROLL;
+  Right_LEG.T_matrix = R_PELVIS_YAW * R_PELVIS_ROLL * R_PELVIS_PITCH * R_KNEE_PITCH * R_ANKLE_PITCH * R_ANKLE_ROLL;
 }
 
 void gazebo::SUBO3_plugin::EncoderRead()
@@ -701,8 +780,8 @@ void gazebo::SUBO3_plugin::EncoderRead()
   }
   for (int i = 0; i < 6; i++)
   {
-    Act_RL_th[i] = double(actual_joint_pos[i]);
-    Act_LL_th[i] = double(actual_joint_pos[i+6]);
+    Act_LL_th[i] = double(actual_joint_pos[i]);
+    Act_RL_th[i] = double(actual_joint_pos[i+6]);
   }
 }
 
@@ -1335,7 +1414,7 @@ void BRP_RL2PC_FK(double th[12], double PR[12])  // (2015_07_29)
 	PR[9] = atan2(sin(PR[11])*ax - cos(PR[11])*ay, -sin(PR[11])*ox + cos(PR[11])*oy);  // csi : Yaw about x0 axis   	
 }
 
-void BRP_RL_FK(double th[6], double PR[6])  // (2015_07_29)
+void BRP_LL_FK(double th[6], double PR[6])  // (2015_07_29)
 {
 	double  c1, c2, c3, c4, c5, c6, s1, s2, s3, s4, s5, s6, c34, s34, s345, c345, c12345, s1345, c1345, nx, ny, nz, ox, oy, oz, ax, ay, az;
 	c1 = cos(th[0]); c2 = cos(th[1]); c3 = cos(th[2]); c4 = cos(th[3]); c5 = cos(th[4]); c6 = cos(th[5]); 
@@ -1345,7 +1424,7 @@ void BRP_RL_FK(double th[6], double PR[6])  // (2015_07_29)
 
 	// Endeffector position
 	PR[0] = -c3*((L3 + c4*(L4 + L6*c5*c6))*s1*s2 + c1*(L4 + L6*c5*c6)*s4) - c1*((L3 + c4*(L4 + L6*c5*c6))*s3 + L6*c34*c6*s5) + s1*(s2*((L4 + L6*c5*c6)*s3*s4 + L6*c6*s34*s5) - L6*c2*s6);
-	PR[1] = -L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6);
+	PR[1] = L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6);
 	PR[2] = -c2*(c3*(L3 + L4*c4) + L6*c345*c6 - L4*s3*s4) + L6*s2*s6;
 
 	// Endeffector orientation
@@ -1372,7 +1451,7 @@ void BRP_RL_FK(double th[6], double PR[6])  // (2015_07_29)
 	PR[3] = atan2(sin(PR[5])*ax - cos(PR[5])*ay, -sin(PR[5])*ox + cos(PR[5])*oy);  // csi : Yaw about x0 axis
 }
 
-void BRP_LL_FK(double th[6], double PR[6])  // (2015_07_29)
+void BRP_RL_FK(double th[6], double PR[6])  // (2015_07_29)
 {
 	double  c1, c2, c3, c4, c5, c6, s1, s2, s3, s4, s5, s6, c34, s34, s345, c345, c12345, s1345, c1345, nx, ny, nz, ox, oy, oz, ax, ay, az;
 
@@ -1383,7 +1462,7 @@ void BRP_LL_FK(double th[6], double PR[6])  // (2015_07_29)
 
 	// Endeffector position
 	PR[0] = -c3*((L3 + c4*(L4 + L6*c5*c6))*s1*s2 + c1*(L4 + L6*c5*c6)*s4) - c1*((L3 + c4*(L4 + L6*c5*c6))*s3 + L6*c34*c6*s5) + s1*(s2*((L4 + L6*c5*c6)*s3*s4 + L6*c6*s34*s5) - L6*c2*s6);
-	PR[1] = L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6);
+	PR[1] = -L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6);
 	PR[2] = -c2*(c3*(L3 + L4*c4) + L6*c345*c6 - L4*s3*s4) + L6*s2*s6;
 
 	// Endeffector orientation
@@ -1666,6 +1745,132 @@ void BodyRotation(double Trans_Ref_PR[6], double Ref_PR[6], double o_fcp[3], dou
   Trans_Ref_PR[5] = Ref_PR[5] + gamma;
 }
 
+void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
+{
+  RigidBodyDynamics::Math::Vector3d Foot_Pos;
+  RigidBodyDynamics::Math::Matrix3d R, R_Tmp;
+  RigidBodyDynamics::Math::MatrixNd L_Jacobian8, L_Jacobian, L_Jacobian_tmp, L_Bmatrix;
+  RigidBodyDynamics::Math::VectorNd QDot;
+  
+  L_Jacobian8 = RigidBodyDynamics::Math::MatrixNd::Zero(L_rbdl_model->dof_count,L_rbdl_model->dof_count);
+  L_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  L_Jacobian_tmp = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  L_Bmatrix = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  double pi = 0, theta = 0, psi = 0;
+
+  //*********************Left Leg**********************//
+  // Get the End Effector's Aixs
+  Foot_Pos = CalcBodyToBaseCoordinates(*L_rbdl_model, L_Q, L_body_End_id, RigidBodyDynamics::Math::Vector3d(0, 0, 0), true);
+  
+  // Get the End Effector's Rotation Matrix
+  R_Tmp = CalcBodyWorldOrientation(*L_rbdl_model, L_Q, L_body_End_id, true);
+  R = R_Tmp.transpose();
+
+  // Get the Euler Angle - pi, theta, psi
+  pi = atan2(R(1,0),R(0,0));
+  theta = atan2(-R(2,0), cos(pi)*R(0,0) + sin(pi)*R(1,0));
+  psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
+
+  // Get the Jacobian
+  CalcPointJacobian6D(*L_rbdl_model, L_Q, L_body_End_id, RigidBodyDynamics::Math::Vector3d(0, 0, 0), L_Jacobian8, true);
+  
+  // Get the Jacobian for 6 by 6
+  for(int i = 0; i < 6; i++)
+  {
+    for(int j = 0; j < 6; j++)
+    {
+      L_Jacobian_tmp(i, j) = L_Jacobian8(i, j+1);
+    }
+  }
+  
+  // Chage the Row
+  for(int j = 0; j < 6; j++)
+  {
+    for(int i = 0; i < 3; i++)
+    {
+      L_Jacobian(i,j) = L_Jacobian_tmp(i+3,j);  // linear
+    }
+    for(int i = 3; i < 6; i++)
+    {
+      L_Jacobian(i,j) = L_Jacobian_tmp(i-3,j);  // angular
+    }
+  }
+
+  // Calculate the Analytical Jacobian & Inverse of Analytical Jacobian
+  L_Bmatrix << 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, cos(pi)/cos(theta), sin(pi)/cos(theta), 0, 0, 0, 0, -sin(pi), cos(pi), 0, 0, 0, 0, cos(pi)*tan(theta), sin(pi)*tan(theta), 1;
+  L_A_Jacobian = L_Bmatrix*L_Jacobian;
+  Inv_L_A_Jacobian = L_A_Jacobian.inverse();
+
+  // Calculate the Jacobian dot
+  for(int i = 0; i < 6; i++)
+  {
+    for(int j = 0 ; j< 6; j++)
+    {
+      L_A_Jacobian_dot(i,j) = (L_A_Jacobian(i,j) - L_prev_A_Jacobian(i,j)) / dt;
+      L_prev_A_Jacobian(i,j) = L_A_Jacobian(i,j);
+    }
+    QDot(i) = L_QDot(i+1);
+  }
+
+  // Current Pos & Pos_dot
+  L_Foot_Pos(0) = Foot_Pos(0);
+  L_Foot_Pos(1) = Foot_Pos(1);
+  L_Foot_Pos(2) = Foot_Pos(2);
+  L_Foot_Pos(3) = psi;
+  L_Foot_Pos(4) = theta;
+  L_Foot_Pos(5) = pi;
+  L_Foot_Pos_dot = L_A_Jacobian*QDot;
+}
+
+void gazebo::SUBO3_plugin::Calc_CTC_Torque()
+{
+  //*********************Left Leg**********************//
+  RigidBodyDynamics::Math::VectorNd L_X_CTC;
+  L_X_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  RigidBodyDynamics::Math::VectorNd L_q_CTC;
+  L_q_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  RigidBodyDynamics::Math::VectorNd L_NE_Tau;
+  L_NE_Tau = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  RigidBodyDynamics::Math::MatrixNd L_I_Matrix_tmp, L_I_Matrix;
+  L_I_Matrix = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  L_I_Matrix_tmp = RigidBodyDynamics::Math::MatrixNd::Zero(8,8);
+
+  RigidBodyDynamics::Math::VectorNd QDot;
+  QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  L_Kp << 200, 200, 200, 750, 750, 750;
+  L_Kv << 30, 30, 30, 50, 50, 50;
+
+  for(int i = 0; i < 6; i++)
+  {
+    L_X_CTC(i) = L_Des_XDDot(i) + L_Kp(i) * (L_Des_X(i) - L_Foot_Pos(i)) + L_Kv(i) * (L_Des_XDot(i) - L_Foot_Pos_dot(i));
+    QDot(i) = L_QDot(i+1);
+  }
+
+  L_q_CTC = Inv_L_A_Jacobian * (L_X_CTC - L_A_Jacobian_dot*QDot);
+
+  NonlinearEffects(*L_rbdl_model, L_Q, L_QDot, L_Tau, NULL);
+  CompositeRigidBodyAlgorithm(*L_rbdl_model, L_Q, L_I_Matrix_tmp, true);
+
+  for(int i = 0; i < 6; i++)
+  {
+    L_NE_Tau(i) = L_Tau(i+1);
+    for(int j = 0; j < 6; j++)
+    {
+      L_I_Matrix(i,j) = L_I_Matrix_tmp(i+1,j+1);
+    }
+  }
+
+  torque_CTC = L_I_Matrix * L_q_CTC + L_NE_Tau;
+
+  cout << torque_CTC << endl << endl;
+}
+
 void gazebo::SUBO3_plugin::jointController()
 {
   //* Torque Limit 감속기 정격토크참조함.
@@ -1754,6 +1959,11 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
     cnt = 0;
     CONTROL_MODE = GRAVITY_CONTROL;
   }
+  else if (msg->data == 2) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = CTC_CONTROL;
+  }
   else
   {
     cnt = 0;
@@ -1775,6 +1985,11 @@ void gazebo::SUBO3_plugin::PostureGeneration()
 	  test_cnt++;
     Gravity_Cont();
   }
+  else if (CONTROL_MODE == CTC_CONTROL) 
+  {
+	  test_cnt++;
+    CTC_Control();
+  }
 }
 
 void gazebo::SUBO3_plugin::Init_Pos_Traj()
@@ -1790,24 +2005,19 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
 
   if(cnt_time <= (step_time/2))
   {
-    Theo_RL_th[0] = 0;
-    Theo_RL_th[1] = 0;
-    Theo_RL_th[2] = 0;
-    Theo_RL_th[3] = 0;
-    Theo_RL_th[4] = 0;
-    Theo_RL_th[5] = 0;
-    Theo_LL_th[0] = 0;
-    Theo_LL_th[1] = 0;
-    Theo_LL_th[2] = 0;
-    Theo_LL_th[3] = 0;
-    Theo_LL_th[4] = 0;
-    Theo_LL_th[5] = 0;
+    Theo_RL_th[0] = 0*deg2rad;
+    Theo_RL_th[1] = 0*deg2rad;
+    Theo_RL_th[2] = -30*0.5*Init_trajectory*deg2rad;
+    Theo_RL_th[3] = 60*0.5*Init_trajectory*deg2rad;
+    Theo_RL_th[4] = -30*0.5*Init_trajectory*deg2rad;
+    Theo_RL_th[5] = 0*deg2rad;
+    Theo_LL_th[0] = 0*deg2rad;
+    Theo_LL_th[1] = 0*deg2rad;
+    Theo_LL_th[2] = -30*0.5*Init_trajectory*deg2rad;
+    Theo_LL_th[3] = 60*0.5*Init_trajectory*deg2rad;
+    Theo_LL_th[4] = -30*0.5*Init_trajectory*deg2rad;
+    Theo_LL_th[5] = 0*deg2rad;
   }
-  
-  BRP_RL_FK(Theo_RL_th, Theo_RL_PR); // 이론값
-  BRP_LL_FK(Theo_LL_th, Theo_LL_PR);
-  BRP_RL_FK(Act_RL_th, Act_RL_PR); // 실제값
-  BRP_LL_FK(Act_LL_th, Act_LL_PR);
 
   ///////////////토크 입력////////////////
   for (int i = 0; i < 6; i++) {
@@ -1815,34 +2025,56 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
       joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드
   }
 
-  // fprintf(tmpdata,"%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n",L_Force_E[0],L_Force_E[1],L_Force_E[2],L_Torque_E[0],L_Torque_E[1],L_Torque_E[2],R_Force_E[0],R_Force_E[1],R_Force_E[2],R_Torque_E[0],R_Torque_E[1],R_Torque_E[2]); 
+  L_Q(1) = actual_joint_pos[0];
+  L_Q(2) = actual_joint_pos[1];
+  L_Q(3) = actual_joint_pos[2];
+  L_Q(4) = actual_joint_pos[3];
+  L_Q(5) = actual_joint_pos[4];
+  L_Q(6) = actual_joint_pos[5];
+  
+  R_Q(1) = actual_joint_pos[6];
+  R_Q(2) = actual_joint_pos[7];
+  R_Q(3) = actual_joint_pos[8];
+  R_Q(4) = actual_joint_pos[9];
+  R_Q(5) = actual_joint_pos[10];
+  R_Q(6) = actual_joint_pos[11];
+
+  for(int i = 0; i < 6; i++)
+  {
+    L_QDot(i+1) = (L_Q(i+1) - L_prevQ(i+1)) / dt;
+    L_QDDot(i+1) = (L_QDot(i+1) - L_prevQDot(i+1)) / dt;
+    R_QDot(i+1) = (R_Q(i+1) - R_prevQ(i+1)) / dt;
+    R_QDDot(i+1) = (R_QDot(i+1) - R_prevQDot(i+1)) / dt;
+  }
+
+  L_prevQ = L_Q;
+  L_prevQDot = L_QDot;
+  R_prevQ = R_Q;
+  R_prevQDot = R_QDot;
 }
 
 void gazebo::SUBO3_plugin::Gravity_Cont()
 {
-  L_Q(0) = actual_joint_pos[0];
-  L_Q(1) = actual_joint_pos[1];
-  L_Q(2) = actual_joint_pos[2];
-  L_Q(3) = actual_joint_pos[3];
-  L_Q(4) = actual_joint_pos[4];
-  L_Q(5) = actual_joint_pos[5];
+  L_Q(1) = actual_joint_pos[0];
+  L_Q(2) = actual_joint_pos[1];
+  L_Q(3) = actual_joint_pos[2];
+  L_Q(4) = actual_joint_pos[3];
+  L_Q(5) = actual_joint_pos[4];
+  L_Q(6) = actual_joint_pos[5];
 
-  R_Q(0) = actual_joint_pos[6];
-  R_Q(1) = actual_joint_pos[7];
-  R_Q(2) = actual_joint_pos[8];
-  R_Q(3) = actual_joint_pos[9];
-  R_Q(4) = actual_joint_pos[10];
-  R_Q(5) = actual_joint_pos[11];
-
-  InverseDynamics(*L_rbdl_model, L_Q, L_QDot, L_QDDot, L_Tau, NULL);
-  InverseDynamics(*R_rbdl_model, R_Q, R_QDot, R_QDDot, R_Tau, NULL);
+  R_Q(1) = actual_joint_pos[6];
+  R_Q(2) = actual_joint_pos[7];
+  R_Q(3) = actual_joint_pos[8];
+  R_Q(4) = actual_joint_pos[9];
+  R_Q(5) = actual_joint_pos[10];
+  R_Q(6) = actual_joint_pos[11];
 
   for(int i = 0; i < 6; i++)
   {
-    L_QDot(i) = 0;
-    L_QDDot(i) = 0;
-    R_QDot(i) = 0;
-    R_QDDot(i) = 0;
+    L_QDot(i+1) = (L_Q(i+1) - L_prevQ(i+1)) / dt;
+    L_QDDot(i+1) = (L_QDot(i+1) - L_prevQDot(i+1)) / dt;
+    R_QDot(i+1) = (R_Q(i+1) - R_prevQ(i+1)) / dt;
+    R_QDDot(i+1) = (R_QDot(i+1) - R_prevQDot(i+1)) / dt;
   }
 
   L_prevQ = L_Q;
@@ -1850,22 +2082,63 @@ void gazebo::SUBO3_plugin::Gravity_Cont()
   R_prevQ = R_Q;
   R_prevQDot = R_QDot;
 
+  InverseDynamics(*L_rbdl_model, L_Q, RigidBodyDynamics::Math::VectorNd::Zero(8), RigidBodyDynamics::Math::VectorNd::Zero(8), L_Tau, NULL);
+  InverseDynamics(*R_rbdl_model, R_Q, RigidBodyDynamics::Math::VectorNd::Zero(8), RigidBodyDynamics::Math::VectorNd::Zero(8), R_Tau, NULL);
+
   for (int i = 0; i < 6; i++)
   {
-    joint[i].torque = 0;
-    joint[i+6].torque = 0;
+    joint[i].torque = L_Tau(i+1);
+    joint[i+6].torque = R_Tau(i+1);
+  }
+}
+
+void gazebo::SUBO3_plugin::CTC_Control()
+{
+  L_Q(1) = actual_joint_pos[0];
+  L_Q(2) = actual_joint_pos[1];
+  L_Q(3) = actual_joint_pos[2];
+  L_Q(4) = actual_joint_pos[3];
+  L_Q(5) = actual_joint_pos[4];
+  L_Q(6) = actual_joint_pos[5];
+
+  R_Q(1) = actual_joint_pos[6];
+  R_Q(2) = actual_joint_pos[7];
+  R_Q(3) = actual_joint_pos[8];
+  R_Q(4) = actual_joint_pos[9];
+  R_Q(5) = actual_joint_pos[10];
+  R_Q(6) = actual_joint_pos[11];
+
+  for(int i = 0; i < 6; i++)
+  {
+    L_QDot(i+1) = (L_Q(i+1) - L_prevQ(i+1)) / dt;
+    L_QDDot(i+1) = (L_QDot(i+1) - L_prevQDot(i+1)) / dt;
+    R_QDot(i+1) = (R_Q(i+1) - R_prevQ(i+1)) / dt;
+    R_QDDot(i+1) = (R_QDot(i+1) - R_prevQDot(i+1)) / dt;
   }
 
-  plot_cnt++;
-  if(plot_cnt >= 1000)
+  L_prevQ = L_Q;
+  L_prevQDot = L_QDot;
+  R_prevQ = R_Q;
+  R_prevQDot = R_QDot;
+
+  // Target Pos, Pos Dot, Pos DDot
+  L_Des_X(0) = -0.00065;
+  L_Des_X(1) = 0.0691;
+  L_Des_X(2) = -0.6184;
+  L_Des_X(3) = 0;
+  L_Des_X(4) = 0;
+  L_Des_X(5) = 0;
+
+  Calc_Feedback_Pos();  // calculate the feedback
+  Calc_CTC_Torque();    // calculate the CTC torque
+
+  // InverseDynamics(*L_rbdl_model, L_Q, RigidBodyDynamics::Math::VectorNd::Zero(8), RigidBodyDynamics::Math::VectorNd::Zero(8), L_Tau, NULL);
+  InverseDynamics(*R_rbdl_model, R_Q, RigidBodyDynamics::Math::VectorNd::Zero(8), RigidBodyDynamics::Math::VectorNd::Zero(8), R_Tau, NULL);
+
+  for (int i = 0; i < 6; i++)
   {
-    for(int i = 0; i < 6; i++)
-    {
-      cout << "Left Leg: " << i << " angle = " << actual_joint_pos[i] << ", Tau = " << L_Tau(i) << endl;
-      cout << "Right Leg: " << i << " angle = " << actual_joint_pos[i+6] << ", Tau = " << R_Tau(i) << endl;
-    }
-    cout << endl;
-    plot_cnt = 0;
+    joint[i].torque = torque_CTC(i);
+    joint[i+6].torque = R_Tau(i+1);
   }
 }
 
