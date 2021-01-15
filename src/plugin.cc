@@ -121,8 +121,7 @@ RigidBodyDynamics::Math::VectorNd L_prevQDot;
 RigidBodyDynamics::Math::VectorNd L_Tau;
 RigidBodyDynamics::Math::VectorNd L_Foot_Pos, L_Foot_Pos_dot;
 RigidBodyDynamics::Math::MatrixNd L_A_Jacobian, L_prev_A_Jacobian, L_A_Jacobian_dot, Inv_L_A_Jacobian;
-RigidBodyDynamics::Math::VectorNd L_Des_X, L_Des_XDot, L_Des_XDDot, torque_CTC;
-RigidBodyDynamics::Math::VectorNd L_Kp, L_Kv;
+RigidBodyDynamics::Math::VectorNd L_Des_X, L_Des_XDot, L_Des_XDDot, L_torque_CTC;
 
 //Right_Leg
 RigidBodyDynamics::Model* R_rbdl_model = NULL;                                          //make model but emty
@@ -137,8 +136,9 @@ RigidBodyDynamics::Math::VectorNd R_QDDot;
 RigidBodyDynamics::Math::VectorNd R_prevQ;
 RigidBodyDynamics::Math::VectorNd R_prevQDot;
 RigidBodyDynamics::Math::VectorNd R_Tau;
-RigidBodyDynamics::Math::Vector3d R_Foot_Pos;
-RigidBodyDynamics::Math::Vector3d R_Foot_Dir;
+RigidBodyDynamics::Math::VectorNd R_Foot_Pos, R_Foot_Pos_dot;
+RigidBodyDynamics::Math::MatrixNd R_A_Jacobian, R_prev_A_Jacobian, R_A_Jacobian_dot, Inv_R_A_Jacobian;
+RigidBodyDynamics::Math::VectorNd R_Des_X, R_Des_XDot, R_Des_XDDot, R_torque_CTC;
 
 ENDPOINT Left_LEG, Right_LEG;
 
@@ -480,9 +480,7 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
   L_Des_X = RigidBodyDynamics::Math::VectorNd::Zero(6);
   L_Des_XDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
   L_Des_XDDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
-  L_Kp = RigidBodyDynamics::Math::VectorNd::Zero(6);
-  L_Kv = RigidBodyDynamics::Math::VectorNd::Zero(6);
-  torque_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  L_torque_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
 
   //init Q
   L_Q(0) = 0, L_prevQ(0) = 0, L_prevQDot(0) = 0;
@@ -540,6 +538,16 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
 	R_prevQ = RigidBodyDynamics::Math::VectorNd::Zero(R_rbdl_model->dof_count);
 	R_prevQDot = RigidBodyDynamics::Math::VectorNd::Zero(R_rbdl_model->dof_count);
   R_Tau = RigidBodyDynamics::Math::VectorNd::Zero(R_rbdl_model->dof_count);
+  R_Foot_Pos = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  R_Foot_Pos_dot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  R_A_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  R_prev_A_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  R_A_Jacobian_dot = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  Inv_R_A_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  R_Des_X = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  R_Des_XDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  R_Des_XDDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  R_torque_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
 
   //init Q
   R_Q(0) = 0, R_prevQ(0) = 0, R_prevQDot(0) = 0;
@@ -1749,15 +1757,22 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
 {
   RigidBodyDynamics::Math::Vector3d Foot_Pos;
   RigidBodyDynamics::Math::Matrix3d R, R_Tmp;
-  RigidBodyDynamics::Math::MatrixNd L_Jacobian8, L_Jacobian, L_Jacobian_tmp, L_Bmatrix;
   RigidBodyDynamics::Math::VectorNd QDot;
-  
+  RigidBodyDynamics::Math::MatrixNd L_Jacobian8, L_Jacobian, L_Jacobian_tmp, L_Bmatrix;
+  RigidBodyDynamics::Math::MatrixNd R_Jacobian8, R_Jacobian, R_Jacobian_tmp, R_Bmatrix;
+
+  QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
   L_Jacobian8 = RigidBodyDynamics::Math::MatrixNd::Zero(L_rbdl_model->dof_count,L_rbdl_model->dof_count);
   L_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
   L_Jacobian_tmp = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
   L_Bmatrix = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
-  QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
 
+  R_Jacobian8 = RigidBodyDynamics::Math::MatrixNd::Zero(R_rbdl_model->dof_count,R_rbdl_model->dof_count);
+  R_Jacobian = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  R_Jacobian_tmp = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  R_Bmatrix = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  
   double pi = 0, theta = 0, psi = 0;
 
   //*********************Left Leg**********************//
@@ -1822,10 +1837,81 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   L_Foot_Pos(4) = theta;
   L_Foot_Pos(5) = pi;
   L_Foot_Pos_dot = L_A_Jacobian*QDot;
+
+  //*********************Right Leg**********************//
+  // Get the End Effector's Aixs
+  Foot_Pos = CalcBodyToBaseCoordinates(*R_rbdl_model, R_Q, R_body_End_id, RigidBodyDynamics::Math::Vector3d(0, 0, 0), true);
+  
+  // Get the End Effector's Rotation Matrix
+  R_Tmp = CalcBodyWorldOrientation(*R_rbdl_model, R_Q, R_body_End_id, true);
+  R = R_Tmp.transpose();
+
+  // Get the Euler Angle - pi, theta, psi
+  pi = atan2(R(1,0),R(0,0));
+  theta = atan2(-R(2,0), cos(pi)*R(0,0) + sin(pi)*R(1,0));
+  psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
+
+  // Get the Jacobian
+  CalcPointJacobian6D(*R_rbdl_model, R_Q, R_body_End_id, RigidBodyDynamics::Math::Vector3d(0, 0, 0), R_Jacobian8, true);
+  
+  // Get the Jacobian for 6 by 6
+  for(int i = 0; i < 6; i++)
+  {
+    for(int j = 0; j < 6; j++)
+    {
+      R_Jacobian_tmp(i, j) = R_Jacobian8(i, j+1);
+    }
+  }
+  
+  // Chage the Row
+  for(int j = 0; j < 6; j++)
+  {
+    for(int i = 0; i < 3; i++)
+    {
+      R_Jacobian(i,j) = R_Jacobian_tmp(i+3,j);  // linear
+    }
+    for(int i = 3; i < 6; i++)
+    {
+      R_Jacobian(i,j) = R_Jacobian_tmp(i-3,j);  // angular
+    }
+  }
+
+  // Calculate the Analytical Jacobian & Inverse of Analytical Jacobian
+  R_Bmatrix << 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, cos(pi)/cos(theta), sin(pi)/cos(theta), 0, 0, 0, 0, -sin(pi), cos(pi), 0, 0, 0, 0, cos(pi)*tan(theta), sin(pi)*tan(theta), 1;
+  R_A_Jacobian = R_Bmatrix*R_Jacobian;
+  Inv_R_A_Jacobian = R_A_Jacobian.inverse();
+
+  // Calculate the Jacobian dot
+  for(int i = 0; i < 6; i++)
+  {
+    for(int j = 0 ; j< 6; j++)
+    {
+      R_A_Jacobian_dot(i,j) = (R_A_Jacobian(i,j) - R_prev_A_Jacobian(i,j)) / dt;
+      R_prev_A_Jacobian(i,j) = R_A_Jacobian(i,j);
+    }
+    QDot(i) = R_QDot(i+1);
+  }
+
+  // Current Pos & Pos_dot
+  R_Foot_Pos(0) = Foot_Pos(0);
+  R_Foot_Pos(1) = Foot_Pos(1);
+  R_Foot_Pos(2) = Foot_Pos(2);
+  R_Foot_Pos(3) = psi;
+  R_Foot_Pos(4) = theta;
+  R_Foot_Pos(5) = pi;
+  R_Foot_Pos_dot = R_A_Jacobian*QDot;
 }
 
 void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 {
+  RigidBodyDynamics::Math::VectorNd Kp, Kv, QDot;
+  Kp = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  Kv = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
+  
+  Kp << 200, 200, 200, 750, 750, 750;
+  Kv << 30, 30, 30, 50, 50, 50;
+
   //*********************Left Leg**********************//
   RigidBodyDynamics::Math::VectorNd L_X_CTC;
   L_X_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
@@ -1840,15 +1926,9 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
   L_I_Matrix = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
   L_I_Matrix_tmp = RigidBodyDynamics::Math::MatrixNd::Zero(8,8);
 
-  RigidBodyDynamics::Math::VectorNd QDot;
-  QDot = RigidBodyDynamics::Math::VectorNd::Zero(6);
-
-  L_Kp << 200, 200, 200, 750, 750, 750;
-  L_Kv << 30, 30, 30, 50, 50, 50;
-
   for(int i = 0; i < 6; i++)
   {
-    L_X_CTC(i) = L_Des_XDDot(i) + L_Kp(i) * (L_Des_X(i) - L_Foot_Pos(i)) + L_Kv(i) * (L_Des_XDot(i) - L_Foot_Pos_dot(i));
+    L_X_CTC(i) = L_Des_XDDot(i) + Kp(i) * (L_Des_X(i) - L_Foot_Pos(i)) + Kv(i) * (L_Des_XDot(i) - L_Foot_Pos_dot(i));
     QDot(i) = L_QDot(i+1);
   }
 
@@ -1866,9 +1946,48 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
     }
   }
 
-  torque_CTC = L_I_Matrix * L_q_CTC + L_NE_Tau;
+  L_torque_CTC = L_I_Matrix * L_q_CTC + L_NE_Tau;
 
-  cout << torque_CTC << endl << endl;
+  //*********************Right Leg**********************//
+  RigidBodyDynamics::Math::VectorNd R_X_CTC;
+  R_X_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  RigidBodyDynamics::Math::VectorNd R_q_CTC;
+  R_q_CTC = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  RigidBodyDynamics::Math::VectorNd R_NE_Tau;
+  R_NE_Tau = RigidBodyDynamics::Math::VectorNd::Zero(6);
+
+  RigidBodyDynamics::Math::MatrixNd R_I_Matrix_tmp, R_I_Matrix;
+  R_I_Matrix = RigidBodyDynamics::Math::MatrixNd::Zero(6,6);
+  R_I_Matrix_tmp = RigidBodyDynamics::Math::MatrixNd::Zero(8,8);
+
+  for(int i = 0; i < 6; i++)
+  {
+    R_X_CTC(i) = R_Des_XDDot(i) + Kp(i) * (R_Des_X(i) - R_Foot_Pos(i)) + Kv(i) * (R_Des_XDot(i) - R_Foot_Pos_dot(i));
+    QDot(i) = R_QDot(i+1);
+  }
+
+  R_q_CTC = Inv_R_A_Jacobian * (R_X_CTC - R_A_Jacobian_dot*QDot);
+
+  NonlinearEffects(*R_rbdl_model, R_Q, R_QDot, R_Tau, NULL);
+  CompositeRigidBodyAlgorithm(*R_rbdl_model, R_Q, R_I_Matrix_tmp, true);
+
+  for(int i = 0; i < 6; i++)
+  {
+    R_NE_Tau(i) = R_Tau(i+1);
+    for(int j = 0; j < 6; j++)
+    {
+      R_I_Matrix(i,j) = R_I_Matrix_tmp(i+1,j+1);
+    }
+  }
+
+  R_torque_CTC = R_I_Matrix * R_q_CTC + R_NE_Tau;
+
+  cout << "Left Leg" << endl;
+  cout << L_Foot_Pos << endl << endl;
+  cout << "Right Leg" << endl;
+  cout << R_Foot_Pos << endl << endl;
 }
 
 void gazebo::SUBO3_plugin::jointController()
@@ -2122,23 +2241,21 @@ void gazebo::SUBO3_plugin::CTC_Control()
   R_prevQDot = R_QDot;
 
   // Target Pos, Pos Dot, Pos DDot
-  L_Des_X(0) = -0.00065;
-  L_Des_X(1) = 0.0691;
-  L_Des_X(2) = -0.6184;
-  L_Des_X(3) = 0;
-  L_Des_X(4) = 0;
-  L_Des_X(5) = 0;
+  L_Des_X(0) = -0.00065;  L_Des_X(1) = 0.07;  L_Des_X(2) = -0.6184;  L_Des_X(3) = 0;  L_Des_X(4) = 0;  L_Des_X(5) = 0;
+  L_Des_XDot(0) = 0;  L_Des_XDot(1) = 0;  L_Des_XDot(2) = 0;  L_Des_XDot(3) = 0;  L_Des_XDot(4) = 0;  L_Des_XDot(5) = 0;
+  L_Des_XDDot(0) = 0;  L_Des_XDDot(1) = 0;  L_Des_XDDot(2) = 0;  L_Des_XDDot(3) = 0;  L_Des_XDDot(4) = 0;  L_Des_XDDot(5) = 0;
+
+  R_Des_X(0) = -0.00065;  R_Des_X(1) = -0.07;  R_Des_X(2) = -0.6184;  R_Des_X(3) = 0;  R_Des_X(4) = 0;  R_Des_X(5) = 0;
+  R_Des_XDot(0) = 0;  R_Des_XDot(1) = 0;  R_Des_XDot(2) = 0;  R_Des_XDot(3) = 0;  R_Des_XDot(4) = 0;  R_Des_XDot(5) = 0;
+  R_Des_XDDot(0) = 0;  R_Des_XDDot(1) = 0;  R_Des_XDDot(2) = 0;  R_Des_XDDot(3) = 0;  R_Des_XDDot(4) = 0;  R_Des_XDDot(5) = 0;
 
   Calc_Feedback_Pos();  // calculate the feedback
   Calc_CTC_Torque();    // calculate the CTC torque
 
-  // InverseDynamics(*L_rbdl_model, L_Q, RigidBodyDynamics::Math::VectorNd::Zero(8), RigidBodyDynamics::Math::VectorNd::Zero(8), L_Tau, NULL);
-  InverseDynamics(*R_rbdl_model, R_Q, RigidBodyDynamics::Math::VectorNd::Zero(8), RigidBodyDynamics::Math::VectorNd::Zero(8), R_Tau, NULL);
-
   for (int i = 0; i < 6; i++)
   {
-    joint[i].torque = torque_CTC(i);
-    joint[i+6].torque = R_Tau(i+1);
+    joint[i].torque = L_torque_CTC(i);
+    joint[i+6].torque = R_torque_CTC(i);
   }
 }
 
