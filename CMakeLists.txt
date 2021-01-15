@@ -7,7 +7,12 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  message_generation
 )
+
+add_message_files(FILES CTCMsg.msg)
+
+generate_messages(DEPENDENCIES std_msgs)
 
 find_package(gazebo REQUIRED)
 link_directories(${GAZEBO_LIBRARY_DIRS})
@@ -30,3 +35,4 @@ catkin_package(
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
+
