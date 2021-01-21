@@ -1826,7 +1826,7 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   {
     for(int j = 0; j < 6; j++)
     {
-      L_Jacobian_tmp(i, j) = L_Jacobian8(i, j+1);
+      L_Jacobian_tmp(i, j) = L_Jacobian8(i, j+3);
     }
   }
   
@@ -1856,7 +1856,7 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
       L_A_Jacobian_dot(i,j) = (L_A_Jacobian(i,j) - L_prev_A_Jacobian(i,j)) / dt;
       L_prev_A_Jacobian(i,j) = L_A_Jacobian(i,j);
     }
-    QDot(i) = L_QDot(i+1);
+    QDot(i) = L_QDot(i+3);
   }
 
   // Current Pos & Pos_dot
@@ -1889,7 +1889,7 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   {
     for(int j = 0; j < 6; j++)
     {
-      R_Jacobian_tmp(i, j) = R_Jacobian8(i, j+1);
+      R_Jacobian_tmp(i, j) = R_Jacobian8(i, j+3);
     }
   }
   
@@ -1919,7 +1919,7 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
       R_A_Jacobian_dot(i,j) = (R_A_Jacobian(i,j) - R_prev_A_Jacobian(i,j)) / dt;
       R_prev_A_Jacobian(i,j) = R_A_Jacobian(i,j);
     }
-    QDot(i) = R_QDot(i+1);
+    QDot(i) = R_QDot(i+3);
   }
 
   // Current Pos & Pos_dot
@@ -1955,12 +1955,12 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 
   MatrixNd L_I_Matrix_tmp, L_I_Matrix;
   L_I_Matrix = MatrixNd::Zero(6,6);
-  L_I_Matrix_tmp = MatrixNd::Zero(8,8);
+  L_I_Matrix_tmp = MatrixNd::Zero(L_rbdl_model->dof_count,L_rbdl_model->dof_count);
 
   for(int i = 0; i < 6; i++)
   {
     L_X_CTC(i) = L_Des_XDDot(i) + Kp(i) * (L_Des_X(i) - L_Foot_Pos(i)) + Kv(i) * (L_Des_XDot(i) - L_Foot_Pos_dot(i));
-    QDot(i) = L_QDot(i+1);
+    QDot(i) = L_QDot(i+3);
   }
 
   L_q_CTC = Inv_L_A_Jacobian * (L_X_CTC - L_A_Jacobian_dot*QDot);
@@ -1973,7 +1973,7 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
     L_NE_Tau(i) = L_Tau(i+1);
     for(int j = 0; j < 6; j++)
     {
-      L_I_Matrix(i,j) = L_I_Matrix_tmp(i+1,j+1);
+      L_I_Matrix(i,j) = L_I_Matrix_tmp(i+3,j+3);
     }
   }
 
@@ -1991,12 +1991,12 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 
   MatrixNd R_I_Matrix_tmp, R_I_Matrix;
   R_I_Matrix = MatrixNd::Zero(6,6);
-  R_I_Matrix_tmp = MatrixNd::Zero(8,8);
+  R_I_Matrix_tmp = MatrixNd::Zero(L_rbdl_model->dof_count,L_rbdl_model->dof_count);
 
   for(int i = 0; i < 6; i++)
   {
     R_X_CTC(i) = R_Des_XDDot(i) + Kp(i) * (R_Des_X(i) - R_Foot_Pos(i)) + Kv(i) * (R_Des_XDot(i) - R_Foot_Pos_dot(i));
-    QDot(i) = R_QDot(i+1);
+    QDot(i) = R_QDot(i+3);
   }
 
   R_q_CTC = Inv_R_A_Jacobian * (R_X_CTC - R_A_Jacobian_dot*QDot);
@@ -2009,7 +2009,7 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
     R_NE_Tau(i) = R_Tau(i+1);
     for(int j = 0; j < 6; j++)
     {
-      R_I_Matrix(i,j) = R_I_Matrix_tmp(i+1,j+1);
+      R_I_Matrix(i,j) = R_I_Matrix_tmp(i+3,j+3);
     }
   }
 
@@ -2030,9 +2030,8 @@ void gazebo::SUBO3_plugin::CalcBodyAngle()
   L_Q(1) = body_imu_pitch;
   R_Q(0) = body_imu_roll;
   R_Q(1) = body_imu_pitch;
-
-  cout << L_Q(0) << ' ' << L_Q(1) << endl;
 }
+
 void gazebo::SUBO3_plugin::jointController()
 {
   //* Torque Limit 감속기 정격토크참조함.
@@ -2251,13 +2250,10 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
   R_Q(7) = actual_joint_pos[10];
   R_Q(8) = actual_joint_pos[11];
 
-  for(int i = 0; i < 6; i++)
-  {
-    L_QDot(i+3) = (L_Q(i+3) - L_prevQ(i+3)) / dt;
-    L_QDDot(i+3) = (L_QDot(i+3) - L_prevQDot(i+3)) / dt;
-    R_QDot(i+3) = (R_Q(i+3) - R_prevQ(i+3)) / dt;
-    R_QDDot(i+3) = (R_QDot(i+3) - R_prevQDot(i+3)) / dt;
-  }
+  L_QDot = (L_Q - L_prevQ) / dt;
+  L_QDDot = (L_QDot - L_prevQDot) / dt;
+  R_QDot = (R_Q - R_prevQ) / dt;
+  R_QDDot = (R_QDot - R_prevQDot) / dt;
 
   L_prevQ = L_Q;
   L_prevQDot = L_QDot;
@@ -2290,13 +2286,10 @@ void gazebo::SUBO3_plugin::Gravity_Cont()
   R_Q(7) = actual_joint_pos[10];
   R_Q(8) = actual_joint_pos[11];
 
-  for(int i = 0; i < 6; i++)
-  {
-    L_QDot(i+3) = (L_Q(i+3) - L_prevQ(i+3)) / dt;
-    L_QDDot(i+3) = (L_QDot(i+3) - L_prevQDot(i+3)) / dt;
-    R_QDot(i+3) = (R_Q(i+3) - R_prevQ(i+3)) / dt;
-    R_QDDot(i+3) = (R_QDot(i+3) - R_prevQDot(i+3)) / dt;
-  }
+  L_QDot = (L_Q - L_prevQ) / dt;
+  L_QDDot = (L_QDot - L_prevQDot) / dt;
+  R_QDot = (R_Q - R_prevQ) / dt;
+  R_QDDot = (R_QDot - R_prevQDot) / dt;
 
   L_prevQ = L_Q;
   L_prevQDot = L_QDot;
@@ -2335,27 +2328,24 @@ void gazebo::SUBO3_plugin::CTC_Control()
   double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
   double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
 
-  L_Q(1) = actual_joint_pos[0];
-  L_Q(2) = actual_joint_pos[1];
-  L_Q(3) = actual_joint_pos[2];
-  L_Q(4) = actual_joint_pos[3];
-  L_Q(5) = actual_joint_pos[4];
-  L_Q(6) = actual_joint_pos[5];
+  L_Q(3) = actual_joint_pos[0];
+  L_Q(4) = actual_joint_pos[1];
+  L_Q(5) = actual_joint_pos[2];
+  L_Q(6) = actual_joint_pos[3];
+  L_Q(7) = actual_joint_pos[4];
+  L_Q(8) = actual_joint_pos[5];
 
-  R_Q(1) = actual_joint_pos[6];
-  R_Q(2) = actual_joint_pos[7];
-  R_Q(3) = actual_joint_pos[8];
-  R_Q(4) = actual_joint_pos[9];
-  R_Q(5) = actual_joint_pos[10];
-  R_Q(6) = actual_joint_pos[11];
+  R_Q(3) = actual_joint_pos[6];
+  R_Q(4) = actual_joint_pos[7];
+  R_Q(5) = actual_joint_pos[8];
+  R_Q(6) = actual_joint_pos[9];
+  R_Q(7) = actual_joint_pos[10];
+  R_Q(8) = actual_joint_pos[11];
 
-  for(int i = 0; i < 6; i++)
-  {
-    L_QDot(i+1) = (L_Q(i+1) - L_prevQ(i+1)) / dt;
-    L_QDDot(i+1) = (L_QDot(i+1) - L_prevQDot(i+1)) / dt;
-    R_QDot(i+1) = (R_Q(i+1) - R_prevQ(i+1)) / dt;
-    R_QDDot(i+1) = (R_QDot(i+1) - R_prevQDot(i+1)) / dt;
-  }
+  L_QDot = (L_Q - L_prevQ) / dt;
+  L_QDDot = (L_QDot - L_prevQDot) / dt;
+  R_QDot = (R_Q - R_prevQ) / dt;
+  R_QDDot = (R_QDot - R_prevQDot) / dt;
 
   L_prevQ = L_Q;
   L_prevQDot = L_QDot;
@@ -2403,27 +2393,24 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
   double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
   double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
 
-  L_Q(1) = actual_joint_pos[0];
-  L_Q(2) = actual_joint_pos[1];
-  L_Q(3) = actual_joint_pos[2];
-  L_Q(4) = actual_joint_pos[3];
-  L_Q(5) = actual_joint_pos[4];
-  L_Q(6) = actual_joint_pos[5];
+  L_Q(3) = actual_joint_pos[0];
+  L_Q(4) = actual_joint_pos[1];
+  L_Q(5) = actual_joint_pos[2];
+  L_Q(6) = actual_joint_pos[3];
+  L_Q(7) = actual_joint_pos[4];
+  L_Q(8) = actual_joint_pos[5];
 
-  R_Q(1) = actual_joint_pos[6];
-  R_Q(2) = actual_joint_pos[7];
-  R_Q(3) = actual_joint_pos[8];
-  R_Q(4) = actual_joint_pos[9];
-  R_Q(5) = actual_joint_pos[10];
-  R_Q(6) = actual_joint_pos[11];
+  R_Q(3) = actual_joint_pos[6];
+  R_Q(4) = actual_joint_pos[7];
+  R_Q(5) = actual_joint_pos[8];
+  R_Q(6) = actual_joint_pos[9];
+  R_Q(7) = actual_joint_pos[10];
+  R_Q(8) = actual_joint_pos[11];
 
-  for(int i = 0; i < 6; i++)
-  {
-    L_QDot(i+1) = (L_Q(i+1) - L_prevQ(i+1)) / dt;
-    L_QDDot(i+1) = (L_QDot(i+1) - L_prevQDot(i+1)) / dt;
-    R_QDot(i+1) = (R_Q(i+1) - R_prevQ(i+1)) / dt;
-    R_QDDot(i+1) = (R_QDot(i+1) - R_prevQDot(i+1)) / dt;
-  }
+  L_QDot = (L_Q - L_prevQ) / dt;
+  L_QDDot = (L_QDot - L_prevQDot) / dt;
+  R_QDot = (R_Q - R_prevQ) / dt;
+  R_QDDot = (R_QDot - R_prevQDot) / dt;
 
   L_prevQ = L_Q;
   L_prevQDot = L_QDot;
