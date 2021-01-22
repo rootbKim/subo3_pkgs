@@ -95,6 +95,7 @@ void BodyRotation(double Trans_Ref_PR[6], double Ref_PR[6], double o_fcp[0], dou
 void Inverse_Matrix(int size, double input_matrix[12][24], double output_matrix[12][24]);
 void BRP_RL2PC_FK(double th[12], double PR[12]);
 void BRP_R2L_IK(double Ref_RP[12], double Init_th[12], double IK_th[12]);
+double LPF_1st(double in, double* preOut, double freq_cut, double dt);
 ////////////12DOF IK Function /////////////////
 double Ref_L_PR[12] = {0.,};
 double Ref_R2L_PR[12] = {0.,};
@@ -236,6 +237,22 @@ namespace gazebo
 
     VectorXd BODY_ImuGyro = VectorXd::Zero(3);
     VectorXd BODY_ImuAcc = VectorXd::Zero(3);
+    VectorXd preLPF_BODY_ImuGyro = VectorXd::Zero(3);
+    VectorXd LPF_BODY_ImuGyro = VectorXd::Zero(3);
+    VectorXd body_EAngle = VectorXd::Zero(3);
+    VectorXd Avel2body_EAngleV = VectorXd::Zero(3);
+    VectorXd HPF_Avel2body_EAngle = VectorXd::Zero(3);
+    VectorXd Pre_HPF_Avel2body_EAngle = VectorXd::Zero(3);
+    VectorXd LPF_BODY_ImuAcc = VectorXd::Zero(3);
+    VectorXd preLPF_BODY_ImuAcc = VectorXd::Zero(3);
+    VectorXd ccel2body_EAngle = VectorXd::Zero(3);
+    VectorXd accel2body_EAngle = VectorXd::Zero(3);
+    VectorXd LPF_accel2body_EAngle = VectorXd::Zero(3);
+    VectorXd Pre_LPF_accel2body_EAngle = VectorXd::Zero(3);
+    VectorXd accel = VectorXd::Zero(3);
+    VectorXd gyro_rate = VectorXd::Zero(3);
+    VectorXd imu_rate = VectorXd::Zero(3);
+    double inertial_temp_3_body = 0;
 
     VectorXd L_ImuGyro = VectorXd::Zero(3);
     VectorXd L_ImuAcc = VectorXd::Zero(3);
@@ -1783,6 +1800,19 @@ void BodyRotation(double Trans_Ref_PR[6], double Ref_PR[6], double o_fcp[3], dou
   Trans_Ref_PR[5] = Ref_PR[5] + gamma;
 }
 
+double LPF_1st(double in, double* preOut, double freq_cut, double dt)
+{
+	double tau, res, alpha;
+
+	tau = 1 / (2 * PI * freq_cut);
+	alpha = dt / (tau + dt);
+	
+	res = alpha * in + (1- alpha) * *preOut;
+	
+	*preOut = res;
+	return res;
+}
+
 void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
 {
   Math::Vector3d Foot_Pos;
@@ -1817,6 +1847,8 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   pi = atan2(R(1,0),R(0,0));
   theta = atan2(-R(2,0), cos(pi)*R(0,0) + sin(pi)*R(1,0));
   psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
+
+  cout << "End: " << pi << ' ' << theta << ' ' << psi << endl << endl;;
 
   // Get the Jacobian
   CalcPointJacobian6D(*L_rbdl_model, L_Q, L_body_FOOT_id, Math::Vector3d(0, 0, 0), L_Jacobian8, true);
@@ -2022,14 +2054,40 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 
 void gazebo::SUBO3_plugin::CalcBodyAngle()
 {
-  double body_imu_roll = atan(BODY_ImuAcc(1)/(sqrt(pow(BODY_ImuAcc(0),2)+pow(BODY_ImuAcc(2),2))));
-  double body_imu_pitch = -atan(BODY_ImuAcc(0)/(sqrt(pow(BODY_ImuAcc(1),2)+pow(BODY_ImuAcc(2),2))));
-  double body_imu_yaw = atan(BODY_ImuAcc(2)/(sqrt(pow(BODY_ImuAcc(0),2)+pow(BODY_ImuAcc(1),2))));
+  double calBuff;
 
-  L_Q(0) = body_imu_roll;
-  L_Q(1) = body_imu_pitch;
-  R_Q(0) = body_imu_roll;
-  R_Q(1) = body_imu_pitch;
+	// 57.29578 = 180 / pi : radian to deg
+	calBuff = BODY_ImuAcc(1) * BODY_ImuAcc(1) + BODY_ImuAcc(2) * BODY_ImuAcc(2);
+	accel(0) = atan2(BODY_ImuAcc(0), sqrt(calBuff)) * rad2deg;
+	accel(1) = atan2(BODY_ImuAcc(1), BODY_ImuAcc(2)) * rad2deg;
+
+	// raw data * (real scale) / (data scale) -> 250 / 32768 = 0.007629394
+	gyro_rate(0) = (double)BODY_ImuGyro(0) * deg2rad;
+	gyro_rate(1) = (double)BODY_ImuGyro(1) * deg2rad;
+	gyro_rate(2) = (double)BODY_ImuGyro(2) * deg2rad;
+
+	// 1st Low pass filter
+	LPF_BODY_ImuAcc(0) = LPF_1st(accel(0), &preLPF_BODY_ImuAcc(0), 20, dt);
+	LPF_BODY_ImuAcc(1) = LPF_1st(accel(1), &preLPF_BODY_ImuAcc(1), 20, dt);
+
+  LPF_BODY_ImuGyro(0) = LPF_1st(gyro_rate(0), &preLPF_BODY_ImuGyro(0), 20, dt);
+  LPF_BODY_ImuGyro(1) = LPF_1st(gyro_rate(1), &preLPF_BODY_ImuGyro(1), 20, dt);
+
+	imu_rate(0) = LPF_BODY_ImuGyro(0);
+	imu_rate(1) = LPF_BODY_ImuGyro(1);
+
+	LPF_BODY_ImuGyro(2) = LPF_1st(gyro_rate(2), &preLPF_BODY_ImuGyro(2), 20, dt);
+	imu_rate(2) = LPF_BODY_ImuGyro(2);
+
+  body_EAngle(0) = 0.997 * (body_EAngle(0) + imu_rate(0) * dt) + 0.003 * LPF_BODY_ImuAcc(0);
+	body_EAngle(1) = 0.997 * (body_EAngle(1) + imu_rate(1) * dt) + 0.003 * LPF_BODY_ImuAcc(1);
+	body_EAngle(2) = body_EAngle(2) + imu_rate(2) * dt;
+
+  L_Q(0) = body_EAngle(1)*deg2rad;
+  L_Q(1) = -body_EAngle(0)*deg2rad;
+  R_Q(0) = body_EAngle(1)*deg2rad;
+  R_Q(1) = -body_EAngle(0)*deg2rad;
+  cout << "Body: " << L_Q(0) << ' ' << L_Q(1) << endl;
 }
 
 void gazebo::SUBO3_plugin::jointController()
@@ -2328,6 +2386,8 @@ void gazebo::SUBO3_plugin::CTC_Control()
   double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
   double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
 
+  CalcBodyAngle();
+
   L_Q(3) = actual_joint_pos[0];
   L_Q(4) = actual_joint_pos[1];
   L_Q(5) = actual_joint_pos[2];
@@ -2392,6 +2452,8 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
 
   double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
   double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
+
+  CalcBodyAngle();
 
   L_Q(3) = actual_joint_pos[0];
   L_Q(4) = actual_joint_pos[1];
