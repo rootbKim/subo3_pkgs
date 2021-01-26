@@ -352,6 +352,7 @@ namespace gazebo
       GRAVITY_CONTROL,
       CTC_CONTROL,
       CTC_CONTROL_POS,
+      CTC_CONTROL_CONT_POS,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -382,6 +383,7 @@ namespace gazebo
     void Gravity_Cont();
     void CTC_Control();
     void CTC_Control_Pos();
+    void CTC_Control_Cont_Pos();
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
@@ -441,12 +443,12 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
   
   L_w_rollI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
 	L_w_roll = Body(0, Math::Vector3d(0, 0, 0), L_w_rollI);
-	L_joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+	L_joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
 	L_w_roll_id = L_rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), L_joint_w_roll, L_w_roll);
 
   L_w_pitchI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
 	L_w_pitch = Body(0, Math::Vector3d(0, 0, 0), L_w_pitchI);
-	L_joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+	L_joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
 	L_w_pitch_id = L_rbdl_model->Model::AddBody(L_w_roll_id, Xtrans(Math::Vector3d(0, 0, 0)), L_joint_w_pitch, L_w_pitch);
 
   L_bodyI_Base = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
@@ -456,12 +458,12 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
 
   R_w_rollI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
 	R_w_roll = Body(0, Math::Vector3d(0, 0, 0), R_w_rollI);
-	R_joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+	R_joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
 	R_w_roll_id = R_rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), R_joint_w_roll, R_w_roll);
 
   R_w_pitchI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
 	R_w_pitch = Body(0, Math::Vector3d(0, 0, 0), R_w_pitchI);
-	R_joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+	R_joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
 	R_w_pitch_id = R_rbdl_model->Model::AddBody(R_w_roll_id, Xtrans(Math::Vector3d(0, 0, 0)), R_joint_w_pitch, R_w_pitch);
 
   R_bodyI_Base = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
@@ -612,16 +614,24 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
   current_time = this->model->GetWorld()->GetSimTime();
   dt = current_time.Double() - this->last_update_time.Double();
 
-  IMUSensorRead();
-  FTSensorRead();
-  EncoderRead(); //FK 푸는것도 포함.
-  PostureGeneration(); // PostureGeneration 하위에 Trajectory 하위에 IK푸는것 포함.
-  jointController();
-
   f_cnt++;
-  this->last_update_time = current_time;
+  if(f_cnt >= 5)
+  {
+    IMUSensorRead();
+    FTSensorRead();
+    EncoderRead(); //FK 푸는것도 포함.
+  }
 
-  ROSMsgPublish();
+  PostureGeneration(); // PostureGeneration 하위에 Trajectory 하위에 IK푸는것 포함.
+  
+  if(f_cnt >= 5)
+  {
+    jointController();
+    ROSMsgPublish();
+    Print();
+    f_cnt = 0;
+  }
+  this->last_update_time = current_time;
 }
 
 void gazebo::SUBO3_plugin::GetLinks() 
@@ -1848,8 +1858,6 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   theta = atan2(-R(2,0), cos(pi)*R(0,0) + sin(pi)*R(1,0));
   psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
 
-  cout << "End: " << pi << ' ' << theta << ' ' << psi << endl << endl;;
-
   // Get the Jacobian
   CalcPointJacobian6D(*L_rbdl_model, L_Q, L_body_FOOT_id, Math::Vector3d(0, 0, 0), L_Jacobian8, true);
   
@@ -1971,8 +1979,8 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 
   if(start_flag == 0)
   {
-    Kp << 10000, 10000, 60000, 10000, 60000, 10000;
-    Kv << 200, 200, 500, 200, 500, 200;
+    Kp << 10000, 10000, 60000, 40000, 60000, 10000;
+    Kv << 200, 200, 500, 300, 500, 200;
   }
 
   //*********************Left Leg**********************//
@@ -2011,6 +2019,16 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
 
   L_torque_CTC = L_I_Matrix * L_q_CTC + L_NE_Tau;
 
+  plot_cnt++;
+  if(plot_cnt >= 1000)
+  {
+    cout << L_Foot_Pos << endl << endl;
+    cout << L_Des_X << endl << endl;
+    cout << L_torque_CTC << endl << endl;
+    cout << "===================================" << endl << endl;
+    plot_cnt = 0;
+  }
+  
   //*********************Right Leg**********************//
   VectorNd R_X_CTC;
   R_X_CTC = VectorNd::Zero(6);
@@ -2046,15 +2064,13 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque()
   }
 
   R_torque_CTC = R_I_Matrix * R_q_CTC + R_NE_Tau;
-
-  fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", L_Des_X(0),L_Des_X(1),L_Des_X(2),L_Des_X(3),L_Des_X(4),L_Des_X(5));
-  fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Foot_Pos(0),L_Foot_Pos(1),L_Foot_Pos(2),L_Foot_Pos(3),L_Foot_Pos(4),L_Foot_Pos(5));
-  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", L_torque_CTC(0),L_torque_CTC(1),L_torque_CTC(2),L_torque_CTC(3),L_torque_CTC(4),L_torque_CTC(5));
 }
 
 void gazebo::SUBO3_plugin::CalcBodyAngle()
 {
   double calBuff;
+  Math::Matrix3d R_rll, R_pit, R_matrix;
+  Math::Vector3d tmp;
 
 	// 57.29578 = 180 / pi : radian to deg
 	calBuff = BODY_ImuAcc(1) * BODY_ImuAcc(1) + BODY_ImuAcc(2) * BODY_ImuAcc(2);
@@ -2083,11 +2099,13 @@ void gazebo::SUBO3_plugin::CalcBodyAngle()
 	body_EAngle(1) = 0.997 * (body_EAngle(1) + imu_rate(1) * dt) + 0.003 * LPF_BODY_ImuAcc(1);
 	body_EAngle(2) = body_EAngle(2) + imu_rate(2) * dt;
 
-  L_Q(0) = body_EAngle(1)*deg2rad;
-  L_Q(1) = -body_EAngle(0)*deg2rad;
-  R_Q(0) = body_EAngle(1)*deg2rad;
-  R_Q(1) = -body_EAngle(0)*deg2rad;
-  cout << "Body: " << L_Q(0) << ' ' << L_Q(1) << endl;
+  R_rll << 1, 0, 0, 0, cos(body_EAngle(1)*deg2rad), sin(body_EAngle(1)*deg2rad), 0, -sin(body_EAngle(1)*deg2rad), cos(body_EAngle(1)*deg2rad);
+  R_pit << cos(-body_EAngle(0)*deg2rad), 0, -sin(-body_EAngle(0)*deg2rad), 0, 1, 0, sin(-body_EAngle(0)*deg2rad), 0, cos(-body_EAngle(0)*deg2rad);
+
+  L_Q(0) = -body_EAngle(0)*deg2rad;
+  L_Q(1) = body_EAngle(1)*deg2rad;
+  R_Q(0) = -body_EAngle(0)*deg2rad;
+  R_Q(1) = body_EAngle(1)*deg2rad;
 }
 
 void gazebo::SUBO3_plugin::jointController()
@@ -2188,6 +2206,11 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
     cnt = 0;
     CONTROL_MODE = CTC_CONTROL_POS;
   }
+  else if (msg->data == 4) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = CTC_CONTROL_CONT_POS;
+  }
   else
   {
     cnt = 0;
@@ -2254,6 +2277,12 @@ void gazebo::SUBO3_plugin::PostureGeneration()
 	  test_cnt++;
     CTC_Control_Pos();
   }
+  else if (CONTROL_MODE == CTC_CONTROL_CONT_POS) 
+  {
+	  test_cnt++;
+    CTC_Control_Cont_Pos();
+  }
+  
 }
 
 void gazebo::SUBO3_plugin::Init_Pos_Traj()
@@ -2266,7 +2295,7 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
   
   double periodic_function_sin = sin(2*PI/step_time*cnt_time);
   double periodic_function_cos = cos(2*PI/step_time*cnt_time);
-  double Init_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
+  double Init_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
   CalcBodyAngle();
 
@@ -2286,14 +2315,6 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
     Theo_LL_th[5] = 0*deg2rad;
   }
   
-  ///////////////토크 입력////////////////
-  for (int i = 0; i < 6; i++) {
-    joint[i].torque = Kp_q[i]*(Theo_RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드
-    joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드
-    old_joint[i].torque = joint[i].torque;
-    old_joint[i+6].torque = joint[i+6].torque;
-  }
-
   L_Q(3) = actual_joint_pos[0];
   L_Q(4) = actual_joint_pos[1];
   L_Q(5) = actual_joint_pos[2];
@@ -2317,6 +2338,17 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
   L_prevQDot = L_QDot;
   R_prevQ = R_Q;
   R_prevQDot = R_QDot;
+
+  InverseDynamics(*L_rbdl_model, L_Q, VectorNd::Zero(9), VectorNd::Zero(9), L_Tau, NULL);
+  InverseDynamics(*R_rbdl_model, R_Q, VectorNd::Zero(9), VectorNd::Zero(9), R_Tau, NULL);
+
+  ///////////////토크 입력////////////////
+  for (int i = 0; i < 6; i++) {
+    joint[i].torque = Kp_q[i]*(Theo_RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드
+    joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드
+    old_joint[i].torque = joint[i].torque;
+    old_joint[i+6].torque = joint[i+6].torque;
+  }
 }
 
 void gazebo::SUBO3_plugin::Gravity_Cont()
@@ -2325,8 +2357,8 @@ void gazebo::SUBO3_plugin::Gravity_Cont()
   cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
-  double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
-  double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
   CalcBodyAngle();
 
@@ -2357,23 +2389,12 @@ void gazebo::SUBO3_plugin::Gravity_Cont()
   InverseDynamics(*L_rbdl_model, L_Q, VectorNd::Zero(9), VectorNd::Zero(9), L_Tau, NULL);
   InverseDynamics(*R_rbdl_model, R_Q, VectorNd::Zero(9), VectorNd::Zero(9), R_Tau, NULL);
 
-  if(cnt_time <= step_time)
+  for (int i = 0; i < 6; i++)
   {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = old_joint[i].torque*old_trajectory + L_Tau(i+3)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + R_Tau(i+3)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = L_Tau(i+3);
-      joint[i+6].torque = R_Tau(i+3);
-      old_joint[i].torque = joint[i].torque;
-      old_joint[i+6].torque = joint[i+6].torque;
-    }
+    joint[i].torque = L_Tau(i+3);
+    joint[i+6].torque = R_Tau(i+3);
+    old_joint[i].torque = joint[i].torque;
+    old_joint[i+6].torque = joint[i+6].torque;
   }
 }
 
@@ -2383,8 +2404,8 @@ void gazebo::SUBO3_plugin::CTC_Control()
   cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
-  double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
-  double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
   CalcBodyAngle();
 
@@ -2450,8 +2471,8 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
   cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
 
-  double old_trajectory = (cos((0.5*PI)*(cnt_time/step_time)));
-  double new_trajectory = (1-cos((0.5*PI)*(cnt_time/step_time)));
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
   CalcBodyAngle();
 
@@ -2498,7 +2519,7 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
     chg_step_time = 2;
     chg_cnt_time = chg_cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
     chg_cnt++;
-    double change_trajectory = (1-cos((0.5*PI)*(chg_cnt_time/chg_step_time)));
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
     if(chg_cnt_time <= chg_step_time)
     {
       L_Des_X = Old_L_Des_X + (New_L_Des_X - Old_L_Des_X)*change_trajectory;
@@ -2545,9 +2566,162 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
   }
 }
 
+void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos()
+{
+  step_time = 2; //주기설정 (초) 변수
+  cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  CalcBodyAngle();
+
+  L_Q(3) = actual_joint_pos[0];
+  L_Q(4) = actual_joint_pos[1];
+  L_Q(5) = actual_joint_pos[2];
+  L_Q(6) = actual_joint_pos[3];
+  L_Q(7) = actual_joint_pos[4];
+  L_Q(8) = actual_joint_pos[5];
+
+  R_Q(3) = actual_joint_pos[6];
+  R_Q(4) = actual_joint_pos[7];
+  R_Q(5) = actual_joint_pos[8];
+  R_Q(6) = actual_joint_pos[9];
+  R_Q(7) = actual_joint_pos[10];
+  R_Q(8) = actual_joint_pos[11];
+
+  L_QDot = (L_Q - L_prevQ) / dt;
+  L_QDDot = (L_QDot - L_prevQDot) / dt;
+  R_QDot = (R_Q - R_prevQ) / dt;
+  R_QDDot = (R_QDot - R_prevQDot) / dt;
+
+  L_prevQ = L_Q;
+  L_prevQDot = L_QDot;
+  R_prevQ = R_Q;
+  R_prevQDot = R_QDot;
+
+  // Target Pos, Pos Dot, Pos DDot
+  if(start_flag == 0)
+  {
+    L_Des_X(0) = 0;  L_Des_X(1) = 0.07;  L_Des_X(2) = -0.507;  L_Des_X(3) = 0;  L_Des_X(4) = 0;  L_Des_X(5) = 0;
+    L_Des_XDot(0) = 0;  L_Des_XDot(1) = 0;  L_Des_XDot(2) = 0;  L_Des_XDot(3) = 0;  L_Des_XDot(4) = 0;  L_Des_XDot(5) = 0;
+    L_Des_XDDot(0) = 0;  L_Des_XDDot(1) = 0;  L_Des_XDDot(2) = 0;  L_Des_XDDot(3) = 0;  L_Des_XDDot(4) = 0;  L_Des_XDDot(5) = 0;
+
+    R_Des_X(0) = 0;  R_Des_X(1) = -0.07;  R_Des_X(2) = -0.507;  R_Des_X(3) = 0;  R_Des_X(4) = 0;  R_Des_X(5) = 0;
+    R_Des_XDot(0) = 0;  R_Des_XDot(1) = 0;  R_Des_XDot(2) = 0;  R_Des_XDot(3) = 0;  R_Des_XDot(4) = 0;  R_Des_XDot(5) = 0;
+    R_Des_XDDot(0) = 0;  R_Des_XDDot(1) = 0;  R_Des_XDDot(2) = 0;  R_Des_XDDot(3) = 0;  R_Des_XDDot(4) = 0;  R_Des_XDDot(5) = 0;
+
+    Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
+    Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+  }
+  else if(start_flag == 1)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    
+    New_L_Des_X << 0, 0.07, -0.4, 0, 0, 0;
+    New_L_Des_XDot << 0, 0, 0, 0, 0, 0;
+    New_L_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    New_R_Des_X << 0, -0.07, -0.55, 0, 0, 0;
+    New_R_Des_XDot << 0, 0, 0, 0, 0, 0;
+    New_R_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    if(chg_cnt_time <= chg_step_time)
+    {
+      L_Des_X = Old_L_Des_X + (New_L_Des_X - Old_L_Des_X)*change_trajectory;
+      L_Des_XDot = Old_L_Des_XDot + (New_L_Des_XDot - Old_L_Des_XDot)*change_trajectory;
+      L_Des_XDDot = Old_L_Des_XDDot + (New_L_Des_XDDot - Old_L_Des_XDDot)*change_trajectory;
+
+      R_Des_X = Old_R_Des_X + (New_R_Des_X - Old_R_Des_X)*change_trajectory;
+      R_Des_XDot = Old_R_Des_XDot + (New_R_Des_XDot - Old_R_Des_XDot)*change_trajectory;
+      R_Des_XDDot = Old_R_Des_XDDot + (New_R_Des_XDDot - Old_R_Des_XDDot)*change_trajectory;
+    }
+    else
+    {
+      L_Des_X = New_L_Des_X; L_Des_XDot = New_L_Des_XDot; L_Des_XDDot = New_L_Des_XDDot;
+      R_Des_X = New_R_Des_X; R_Des_XDot = New_R_Des_XDot; R_Des_XDDot = New_R_Des_XDDot;
+
+      Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
+      Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+
+      start_flag = 2;
+      chg_cnt = 0;
+    }
+  }
+  else if(start_flag == 2)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    
+    New_L_Des_X << 0, 0.07, -0.55, 0, 0, 0;
+    New_L_Des_XDot << 0, 0, 0, 0, 0, 0;
+    New_L_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    New_R_Des_X << 0, -0.07, -0.4, 0, 0, 0;
+    New_R_Des_XDot << 0, 0, 0, 0, 0, 0;
+    New_R_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    
+    if(chg_cnt_time <= chg_step_time)
+    {
+      L_Des_X = Old_L_Des_X + (New_L_Des_X - Old_L_Des_X)*change_trajectory;
+      L_Des_XDot = Old_L_Des_XDot + (New_L_Des_XDot - Old_L_Des_XDot)*change_trajectory;
+      L_Des_XDDot = Old_L_Des_XDDot + (New_L_Des_XDDot - Old_L_Des_XDDot)*change_trajectory;
+
+      R_Des_X = Old_R_Des_X + (New_R_Des_X - Old_R_Des_X)*change_trajectory;
+      R_Des_XDot = Old_R_Des_XDot + (New_R_Des_XDot - Old_R_Des_XDot)*change_trajectory;
+      R_Des_XDDot = Old_R_Des_XDDot + (New_R_Des_XDDot - Old_R_Des_XDDot)*change_trajectory;
+    }
+    else
+    {
+      L_Des_X = New_L_Des_X; L_Des_XDot = New_L_Des_XDot; L_Des_XDDot = New_L_Des_XDDot;
+      R_Des_X = New_R_Des_X; R_Des_XDot = New_R_Des_XDot; R_Des_XDDot = New_R_Des_XDDot;
+
+      Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
+      Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+
+      start_flag = 1;
+      chg_cnt = 0;
+    }
+  }
+
+  Calc_Feedback_Pos();  // calculate the feedback
+  Calc_CTC_Torque();    // calculate the CTC torque
+
+  if(cnt_time <= step_time)
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[i].torque = old_joint[i].torque*old_trajectory + L_torque_CTC(i)*new_trajectory;
+      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + R_torque_CTC(i)*new_trajectory;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[i].torque = L_torque_CTC(i);
+      joint[i+6].torque = R_torque_CTC(i);
+      old_joint[i].torque = joint[i].torque;
+      old_joint[i+6].torque = joint[i+6].torque;
+    }
+  }
+}
+
 void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플로팅
 {
-
+  if (CONTROL_MODE == CTC_CONTROL_CONT_POS) 
+  {
+    fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", L_Des_X(0),L_Des_X(1),L_Des_X(2),L_Des_X(3),L_Des_X(4),L_Des_X(5));
+    fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Foot_Pos(0),L_Foot_Pos(1),L_Foot_Pos(2),L_Foot_Pos(3),L_Foot_Pos(4),L_Foot_Pos(5));
+    fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", L_torque_CTC(0), L_torque_CTC(1), L_torque_CTC(2), L_torque_CTC(3), L_torque_CTC(4), L_torque_CTC(5));
+    fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", R_Des_X(0),R_Des_X(1),R_Des_X(2),R_Des_X(3),R_Des_X(4),R_Des_X(5));
+    fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", R_Foot_Pos(0),R_Foot_Pos(1),R_Foot_Pos(2),R_Foot_Pos(3),R_Foot_Pos(4),R_Foot_Pos(5));
+    fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", R_torque_CTC(0), R_torque_CTC(1), R_torque_CTC(2), R_torque_CTC(3), R_torque_CTC(4), R_torque_CTC(5));
+  }
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
@@ -2663,3 +2837,4 @@ void gazebo::SUBO3_plugin::ROSMsgPublish()
   
   P_ros_msg.publish(m_ros_msg);
 }
+
