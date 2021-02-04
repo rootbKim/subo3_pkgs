@@ -46,33 +46,13 @@ typedef struct Joint_torque
 #define deg2rad		0.017453292519943
 #define rad2deg		57.295779513082323
 
-// ************** 
-#define del_t		0.005  // Sampling time [sec]
-#define	FW	120.0
-#define	FL	184.0
-#define L0	0.070
-#define L1	0.000
-#define L2	0.000
-#define L3	0.250
-#define L4	0.250
-#define L5	0.000
-#define L6	0.1105
-
 // ************* 12DOF IK ***********************//
 MatrixXd J_12DOF_T(12,12);
 MatrixXd J_12DOF(12,12);
 int arr_flag = 0;
 // ***************행렬 선언*********************//
-double Theo_RL_PR[6] = {0.,0.,0.,0.,0.,0.}, Theo_LL_PR[6] = {0.,0.,0.,0.,0.,0.}, Theo_PR[12] = {0.,};
-double Act_RL_PR[6] = {0.,0.,0.,0.,0.,0.}, Act_LL_PR[6] = {0.,0.,0.,0.,0.,0.};
 double Theo_RL_th[6] = {0.,0.,0.,0.,0.,0.}, Theo_LL_th[6] = {0.,0.,0.,0.,0.,0.};
 double Act_RL_th[6] = {0.,0.,0.,0.,0.,0.}, Act_LL_th[6] = {0.,0.,0.,0.,0.,0.};
-double RL_th[6] = {0.,0.,0.,0.,0.,0.}, LL_th[6] = {0.,0.,0.,0.,0.,0.};
-double RL_th_IK[6] = {0.,0.,0.,0.,0.,0.}, LL_th_IK[6] = {0.,0.,0.,0.,0.,0.};
-double Ref_RL_PR[6] = {0.,0.,0.,0.,0.,0.}, Ref_LL_PR[6] = {0.,0.,0.,0.,0.,0.};
-double Trans_Ref_RL_PR[6] = {0.,0.,0.,0.,0.,0.}, Trans_Ref_LL_PR[6] = {0.,0.,0.,0.,0.,0.};
-double Trans_Ref_L_PR[12] = {0.,};
-double RL_T_80[4][4] = {{0.,},};
 //*************** Trajectroy Variables**************//    
 double step_time = 0;
 double cnt_time = 0;
@@ -83,57 +63,40 @@ unsigned int chg_cnt = 0;
 bool home_firstRun = true;
 unsigned int Up_Down_iteration_cnt=0;
 
-////////////IK & FK Function /////////////////
-void BRP_RL_IK(double Ref_RL_RP[6], double Init_th[6], double IK_th[6]);
-void BRP_LL_IK(double Ref_LL_RP[6], double Init_th[6], double IK_th[6]);
-void BRP_RL_FK(double th[6], double PR[6]);
-void BRP_LL_FK(double th[6], double PR[6]);
-void inv_mat6(int m, int n, double Mat4[][4], double Mat6[][6], double c_inv4[4][4], double c_inv[6][6]);
-void inv_mat12(int m, int n, double Mat12[][12], double c_inv[12][12]);
-void BCHT(double Ref_Body_Roll_deg, double Ref_Body_Pitch_deg, double Ref_Body_Yaw_deg, double Ref_RL_BC[3], double Ref_RL_BC_TF[3], double O[3]);
-void BodyRotation(double Trans_Ref_PR[6], double Ref_PR[6], double o_fcp[0], double alpha, double beta, double gamma);
-void Inverse_Matrix(int size, double input_matrix[12][24], double output_matrix[12][24]);
-void BRP_RL2PC_FK(double th[12], double PR[12]);
-void BRP_R2L_IK(double Ref_RP[12], double Init_th[12], double IK_th[12]);
+//***************LOW PASS FILTER**************//    
 double LPF_1st(double in, double* preOut, double freq_cut, double dt);
-////////////12DOF IK Function /////////////////
-double Ref_L_PR[12] = {0.,};
-double Ref_R2L_PR[12] = {0.,};
-double L_th[12] = {0.,};
-double L_th_IK[12] = {0.,};    
-double test_matrix[12][24] = {{0.,},{0.,},{0.,},{0.,},};
-double result_matrix[12][24] = {{0.,},{0.,},{0.,},{0.,},};
+
 //*************** 확인용 변수*********************//
 unsigned int f_cnt = 0; //주기 확인용 
 unsigned int c_cnt = 0; // 시행횟수
 
-//*************** Cofactor 역행렬 변수 ***************//
-float calcDeterminant(float **matrix, int n);
-void cofactor(float **matrix, float **holder, int r, int c, int n);
-void adjugate(float **matrix, float **adju, int n);
-bool inverseMatrix(float **matrix, float **inverse, int n);
-
 //*************** RBDL variable ***************//
-VectorNd Kp, Kv;
-//Left_Leg
-Model* L_rbdl_model = NULL;//make model but emty
-unsigned int L_w_roll_id, L_w_pitch_id, L_body_Base_id, L_body_PELVIS_1_id, L_body_PELVIS_2_id, L_body_THIGH_id, L_body_SHANK_id, L_body_FOOT_id;//id have information of the body
-Body L_w_roll, L_w_pitch, L_body_Base, L_body_PELVIS_1, L_body_PELVIS_2, L_body_THIGH, L_body_SHANK, L_body_FOOT;//make body.
-Joint L_joint_w_roll, L_joint_w_pitch, L_joint_Base, L_joint_PELVIS_YAW, L_joint_PELVIS_ROLL, L_joint_PELVIS_PITCH, L_joint_KNEE, L_joint_ANKLE;//make joint
-Math::Matrix3d L_w_rollI, L_w_pitchI, L_bodyI_Base, L_bodyI_PELVIS_1, L_bodyI_PELVIS_2, L_bodyI_THIGH, L_bodyI_SHANK, L_bodyI_FOOT;//Inertia of Body
-//declare Q -> Q is theta
-VectorNd L_Q, L_QDot, L_QDDot, L_prevQ, L_prevQDot, L_Tau, L_Foot_Pos, L_Foot_Pos_dot, L_Des_X, L_Des_XDot, L_Des_XDDot, L_torque_CTC, Old_L_Des_X, Old_L_Des_XDot, Old_L_Des_XDDot, New_L_Des_X, New_L_Des_XDot, New_L_Des_XDDot;
-MatrixNd L_A_Jacobian, L_prev_A_Jacobian, L_A_Jacobian_dot, Inv_L_A_Jacobian;
+typedef struct Air_rbdl_model_
+{
+  Model* rbdl_model = new Model();
+  VectorNd Q, QDot, QDDot, prevQ, prevQDot, Tau, Foot_Pos, Foot_Pos_dot, Des_X, Des_XDot, Des_XDDot, torque_CTC, Old_Des_X, Old_Des_XDot, Old_Des_XDDot, New_Des_X, New_Des_XDot, New_Des_XDDot, Kp, Kv;
+  MatrixNd A_Jacobian, prev_A_Jacobian, A_Jacobian_dot, Inv_A_Jacobian;
 
-//Right_Leg
-Model* R_rbdl_model = NULL;//make model but emty
-unsigned int R_w_roll_id, R_w_pitch_id, R_body_Base_id, R_body_PELVIS_1_id, R_body_PELVIS_2_id, R_body_THIGH_id, R_body_SHANK_id, R_body_FOOT_id;//id have information of the body
-Body R_w_roll, R_w_pitch, R_body_Base, R_body_PELVIS_1, R_body_PELVIS_2, R_body_THIGH, R_body_SHANK, R_body_FOOT;//make body.
-Joint R_joint_w_roll, R_joint_w_pitch, R_joint_Base, R_joint_PELVIS_YAW, R_joint_PELVIS_ROLL, R_joint_PELVIS_PITCH, R_joint_KNEE, R_joint_ANKLE;//make joint
-Math::Matrix3d R_w_rollI, R_w_pitchI, R_bodyI_Base, R_bodyI_PELVIS_1, R_bodyI_PELVIS_2, R_bodyI_THIGH, R_bodyI_SHANK, R_bodyI_FOOT;//Inertia of Body
-//declare Q -> Q is theta
-VectorNd R_Q, R_QDot, R_QDDot, R_prevQ, R_prevQDot, R_Tau, R_Foot_Pos, R_Foot_Pos_dot, R_Des_X, R_Des_XDot, R_Des_XDDot, R_torque_CTC, Old_R_Des_X, Old_R_Des_XDot, Old_R_Des_XDDot, New_R_Des_X, New_R_Des_XDot, New_R_Des_XDDot;
-MatrixNd R_A_Jacobian, R_prev_A_Jacobian, R_A_Jacobian_dot, Inv_R_A_Jacobian;
+  unsigned int w_roll_id, w_pitch_id, body_Base_id, body_PELVIS_1_id, body_PELVIS_2_id, body_THIGH_id, body_SHANK_id, body_FOOT_id;//id have information of the body
+  Body w_roll, w_pitch, body_Base, body_PELVIS_1, body_PELVIS_2, body_THIGH, body_SHANK, body_FOOT;//make body.
+  Joint joint_w_roll, joint_w_pitch, joint_Base, joint_PELVIS_YAW, joint_PELVIS_ROLL, joint_PELVIS_PITCH, joint_KNEE, joint_ANKLE;//make joint
+  Math::Matrix3d w_rollI, w_pitchI, bodyI_Base, bodyI_PELVIS_1, bodyI_PELVIS_2, bodyI_THIGH, bodyI_SHANK, bodyI_FOOT;//Inertia of Body
+} A_RBDL;
+
+typedef struct Ground_rbdl_model_
+{
+  Model* rbdl_model = new Model();
+  VectorNd Q, QDot, QDDot, prevQ, prevQDot, Tau, Foot_Pos, Foot_Pos_dot, Des_X, Des_XDot, Des_XDDot, torque_CTC, Old_Des_X, Old_Des_XDot, Old_Des_XDDot, New_Des_X, New_Des_XDot, New_Des_XDDot, Kp, Kv;
+  MatrixNd A_Jacobian, prev_A_Jacobian, A_Jacobian_dot, Inv_A_Jacobian;
+
+  unsigned int body_FOOT_id, body_SHANK_id, body_THIGH_id, body_PELVIS_1_id, body_PELVIS_2_id, body_id;//id have information of the body
+  Body body_FOOT, body_SHANK, body_THIGH, body_PELVIS_1, body_PELVIS_2, body;//make body.
+  Joint joint_ANKLE_ROLL, joint_ANKLE_PITCH, joint_KNEE_PITCH, joint_PELVIS_PITCH, joint_PELVIS_ROLL, joint_PELVIS_YAW;//make joint
+  Math::Matrix3d bodyI_FOOT, bodyI_SHANK, bodyI_THIGH, bodyI_PELVIS_1, bodyI_PELVIS_2, bodyI;//Inertia of Body
+} G_RBDL;
+
+A_RBDL A_L, A_R;
+G_RBDL G_L, G_R;
 
 ENDPOINT Left_LEG, Right_LEG;
 
@@ -330,6 +293,7 @@ namespace gazebo
     VectorXd TmpData = VectorXd::Zero(50);
     ros::Subscriber server_sub1;
     ros::Subscriber server_sub2;
+    ros::Subscriber server_sub3;
 
     int start_flag = 0;
 
@@ -345,6 +309,10 @@ namespace gazebo
       CTC_CONTROL,
       CTC_CONTROL_POS,
       CTC_CONTROL_CONT_POS,
+      GROUND_GRAVITY_CONTROL,
+      GROUND_CTC_CONTROL,
+      GROUND_CTC_CONTROL_POS,
+      GROUND_CTC_CONTROL_CONT_POS,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -353,6 +321,12 @@ namespace gazebo
     void Load(physics::ModelPtr _model, sdf::ElementPtr /*_sdf*/);
     void UpdateAlgorithm();
     void RBDL_INIT();
+    void rbdl_variable_init(G_RBDL &rbdl);
+    void rbdl_variable_init(A_RBDL &rbdl);
+    void L_Ground_Model(G_RBDL &rbdl);
+    void R_Ground_Model(G_RBDL &rbdl);
+    void L_Air_Model(A_RBDL &rbdl);
+    void R_Air_Model(A_RBDL &rbdl);
     void GetLinks();
     void GetJoints();
     void InitROSPubSetting();
@@ -364,18 +338,24 @@ namespace gazebo
     void ROSMsgPublish();
     void Callback1(const std_msgs::Int32Ptr &msg);
     void msgCallback(const subo3_pkgs::CTCMsg::ConstPtr &msg);
-    void FTsensorTransformation();
+    void msgCallback2(const subo3_pkgs::CTCMsg::ConstPtr &msg);
 
     void PostureGeneration();
 
-    void Calc_Feedback_Pos();
-    void Calc_CTC_Torque();
+    void Calc_Feedback_Pos(A_RBDL &rbdl);
+    void Calc_CTC_Torque(A_RBDL &rbdl);
+    void Calc_Feedback_Pos(G_RBDL &rbdl);
+    void Calc_CTC_Torque(G_RBDL &rbdl);
     void CalcBodyAngle();
     void Init_Pos_Traj();
     void Gravity_Cont();
     void CTC_Control();
     void CTC_Control_Pos();
     void CTC_Control_Cont_Pos();
+    void GROUND_Gravity_Cont();
+    void GROUND_CTC_Control();
+    void GROUND_CTC_Control_Pos();
+    void GROUND_CTC_Control_Cont_Pos();
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
@@ -386,15 +366,14 @@ namespace gazebo
     FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
     FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
     FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
-    // FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
-    // FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
+    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
     // FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
     // FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
     // FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
     // FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
 
     void Print(void); //Print function
-
   };
   GZ_REGISTER_MODEL_PLUGIN(SUBO3_plugin); //model plugin 등록함수
 }
@@ -423,180 +402,271 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
   //********************RBDL********************//
   rbdl_check_api_version(RBDL_API_VERSION);//check the rdbl version
 
-  Kp = VectorNd::Zero(6);
-  Kv = VectorNd::Zero(6);
-
   //RBDL_MODEL
-  L_rbdl_model = new Model();//declare Model
-  L_rbdl_model->gravity = Math::Vector3d(0., 0., -9.81);//set gravity
-  R_rbdl_model = new Model();//declare Model
-  R_rbdl_model->gravity = Math::Vector3d(0., 0., -9.81);//set gravity
+  A_L.rbdl_model = new Model();//declare Model
+  A_L.rbdl_model->gravity = Math::Vector3d(0., 0., -9.81);//set gravity
+  A_R.rbdl_model = new Model();//declare Model
+  A_R.rbdl_model->gravity = Math::Vector3d(0., 0., -9.81);//set gravity
 
-  L_w_rollI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
-  L_w_roll = Body(0, Math::Vector3d(0, 0, 0), L_w_rollI);
-  L_joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
-  L_w_roll_id = L_rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), L_joint_w_roll, L_w_roll);
+  G_L.rbdl_model = new Model();//declare Model
+  G_L.rbdl_model->gravity = Math::Vector3d(0., 0., -9.81);//set gravity
+  G_R.rbdl_model = new Model();//declare Model
+  G_R.rbdl_model->gravity = Math::Vector3d(0., 0., -9.81);//set gravity
 
-  L_w_pitchI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
-  L_w_pitch = Body(0, Math::Vector3d(0, 0, 0), L_w_pitchI);
-  L_joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
-  L_w_pitch_id = L_rbdl_model->Model::AddBody(L_w_roll_id, Xtrans(Math::Vector3d(0, 0, 0)), L_joint_w_pitch, L_w_pitch);
+  L_Air_Model(A_L);
+  R_Air_Model(A_R);
 
-  L_bodyI_Base = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
-	L_body_Base = Body(0, Math::Vector3d(0, 0, 0), L_bodyI_Base);
-	L_joint_Base = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 0));
-	L_body_Base_id = L_rbdl_model->Model::AddBody(L_w_pitch_id, Xtrans(Math::Vector3d(0, 0, 0)), L_joint_Base, L_body_Base);
+  L_Ground_Model(G_L);
+  R_Ground_Model(G_R);
 
-  R_w_rollI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
-  R_w_roll = Body(0, Math::Vector3d(0, 0, 0), R_w_rollI);
-  R_joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
-  R_w_roll_id = R_rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), R_joint_w_roll, R_w_roll);
+  rbdl_variable_init(A_L);
+  rbdl_variable_init(A_R);
+  rbdl_variable_init(G_L);
+  rbdl_variable_init(G_R);
+}
 
-  R_w_pitchI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
-  R_w_pitch = Body(0, Math::Vector3d(0, 0, 0), R_w_pitchI);
-  R_joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
-  R_w_pitch_id = R_rbdl_model->Model::AddBody(R_w_roll_id, Xtrans(Math::Vector3d(0, 0, 0)), R_joint_w_pitch, R_w_pitch);
+void gazebo::SUBO3_plugin::rbdl_variable_init(A_RBDL &rbdl)
+{
+  //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
+	rbdl.Q = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.QDot = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.QDDot = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.prevQ = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.prevQDot = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+  rbdl.Tau = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+  rbdl.Foot_Pos = VectorNd::Zero(6);
+  rbdl.Foot_Pos_dot = VectorNd::Zero(6);
+  rbdl.A_Jacobian = MatrixNd::Zero(6,6);
+  rbdl.prev_A_Jacobian = MatrixNd::Zero(6,6);
+  rbdl.A_Jacobian_dot = MatrixNd::Zero(6,6);
+  rbdl.Inv_A_Jacobian = MatrixNd::Zero(6,6);
+  rbdl.Des_X = VectorNd::Zero(6);
+  rbdl.Des_XDot = VectorNd::Zero(6);
+  rbdl.Des_XDDot = VectorNd::Zero(6);
+  rbdl.torque_CTC = VectorNd::Zero(6);
+  rbdl.Old_Des_X = VectorNd::Zero(6);
+  rbdl.Old_Des_XDot = VectorNd::Zero(6);
+  rbdl.Old_Des_XDDot = VectorNd::Zero(6);
+  rbdl.New_Des_X = VectorNd::Zero(6);
+  rbdl.New_Des_XDot = VectorNd::Zero(6);
+  rbdl.New_Des_XDDot = VectorNd::Zero(6);
 
-  R_bodyI_Base = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
-	R_body_Base = Body(0, Math::Vector3d(0, 0, 0), R_bodyI_Base);
-	R_joint_Base = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 0));
-	R_body_Base_id = R_rbdl_model->Model::AddBody(R_w_pitch_id, Xtrans(Math::Vector3d(0, 0, 0)), R_joint_Base, R_body_Base);
+  rbdl.Kp = VectorNd::Zero(6);
+  rbdl.Kv = VectorNd::Zero(6);
+}
+
+void gazebo::SUBO3_plugin::rbdl_variable_init(G_RBDL &rbdl)
+{
+  //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
+	rbdl.Q = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.QDot = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.QDDot = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.prevQ = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+	rbdl.prevQDot = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+  rbdl.Tau = VectorNd::Zero(rbdl.rbdl_model->dof_count);
+  rbdl.Foot_Pos = VectorNd::Zero(6);
+  rbdl.Foot_Pos_dot = VectorNd::Zero(6);
+  rbdl.A_Jacobian = MatrixNd::Zero(6,6);
+  rbdl.prev_A_Jacobian = MatrixNd::Zero(6,6);
+  rbdl.A_Jacobian_dot = MatrixNd::Zero(6,6);
+  rbdl.Inv_A_Jacobian = MatrixNd::Zero(6,6);
+  rbdl.Des_X = VectorNd::Zero(6);
+  rbdl.Des_XDot = VectorNd::Zero(6);
+  rbdl.Des_XDDot = VectorNd::Zero(6);
+  rbdl.torque_CTC = VectorNd::Zero(6);
+  rbdl.Old_Des_X = VectorNd::Zero(6);
+  rbdl.Old_Des_XDot = VectorNd::Zero(6);
+  rbdl.Old_Des_XDDot = VectorNd::Zero(6);
+  rbdl.New_Des_X = VectorNd::Zero(6);
+  rbdl.New_Des_XDot = VectorNd::Zero(6);
+  rbdl.New_Des_XDDot = VectorNd::Zero(6);
+
+  rbdl.Kp = VectorNd::Zero(6);
+  rbdl.Kv = VectorNd::Zero(6);
+}
+
+void gazebo::SUBO3_plugin::L_Air_Model(A_RBDL &rbdl)
+{
+  rbdl.w_rollI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+  rbdl.w_roll = Body(0, Math::Vector3d(0, 0, 0), rbdl.w_rollI);
+  rbdl.joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+  rbdl.w_roll_id = rbdl.rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_w_roll, rbdl.w_roll);
+
+  rbdl.w_pitchI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+  rbdl.w_pitch = Body(0, Math::Vector3d(0, 0, 0), rbdl.w_pitchI);
+  rbdl.joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+  rbdl.w_pitch_id = rbdl.rbdl_model->Model::AddBody(rbdl.w_roll_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_w_pitch, rbdl.w_pitch);
+
+  rbdl.bodyI_Base = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+	rbdl.body_Base = Body(0, Math::Vector3d(0, 0, 0), rbdl.bodyI_Base);
+	rbdl.joint_Base = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 0));
+	rbdl.body_Base_id = rbdl.rbdl_model->Model::AddBody(rbdl.w_pitch_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_Base, rbdl.body_Base);
 
   //********************LEFT_LEG********************//
   //Inertia of Body
-  L_bodyI_PELVIS_1 = Math::Matrix3d(0.000419,-0.000005,0.000133, -0.000005,0.001001,-0.000018, 0.000133,-0.000018,0.000820);
-  L_bodyI_PELVIS_2 = Math::Matrix3d(0.000262,-0.000050,0.000001, -0.000050,0.000727,-0.000002, 0.000001,-0.000002,0.000757);
-  L_bodyI_THIGH = Math::Matrix3d(0.015886,-0.000021,-0.000012, -0.000021,0.014439,-0.000761, -0.000012,-0.000761,0.002793);
-  L_bodyI_SHANK = Math::Matrix3d(0.018454,0.000148,0.001029, 0.000148,0.017892,-0.000337, 0.001029,-0.000337,0.003522);
-  L_bodyI_FOOT = Math::Matrix3d(0.001594,0.000050,-0.000455, 0.000050,0.003143,-0.000103, -0.000455,-0.000103,0.002851);
+  rbdl.bodyI_PELVIS_1 = Math::Matrix3d(0.000419,-0.000005,0.000133, -0.000005,0.001001,-0.000018, 0.000133,-0.000018,0.000820);
+  rbdl.bodyI_PELVIS_2 = Math::Matrix3d(0.000262,-0.000050,0.000001, -0.000050,0.000727,-0.000002, 0.000001,-0.000002,0.000757);
+  rbdl.bodyI_THIGH = Math::Matrix3d(0.015886,-0.000021,-0.000012, -0.000021,0.014439,-0.000761, -0.000012,-0.000761,0.002793);
+  rbdl.bodyI_SHANK = Math::Matrix3d(0.018454,0.000148,0.001029, 0.000148,0.017892,-0.000337, 0.001029,-0.000337,0.003522);
+  rbdl.bodyI_FOOT = Math::Matrix3d(0.001594,0.000050,-0.000455, 0.000050,0.003143,-0.000103, -0.000455,-0.000103,0.002851);
 
   //set_body_PELVIS_1
-	L_body_PELVIS_1 = Body(0.530103, Math::Vector3d(-0.026622, -0.006227, -0.028069), L_bodyI_PELVIS_1);
-	L_joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1)); // pelvis yaw
-	L_body_PELVIS_1_id = L_rbdl_model->Model::AddBody(L_body_Base_id, Xtrans(Math::Vector3d(0, 0.07, 0)), L_joint_PELVIS_YAW, L_body_PELVIS_1);
+	rbdl.body_PELVIS_1 = Body(0.530103, Math::Vector3d(-0.026622, -0.006227, -0.028069), rbdl.bodyI_PELVIS_1);
+	rbdl.joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1)); // pelvis yaw
+	rbdl.body_PELVIS_1_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_Base_id, Xtrans(Math::Vector3d(0, 0.07, 0)), rbdl.joint_PELVIS_YAW, rbdl.body_PELVIS_1);
 	
   //set_body_PELVIS2
-	L_body_PELVIS_2 = Body(0.565726, Math::Vector3d(-0.029274, -0.002813, -0.000043), L_bodyI_PELVIS_2);
-	L_joint_PELVIS_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0)); // pelvis roll
-	L_body_PELVIS_2_id = L_rbdl_model->Model::AddBody(L_body_PELVIS_1_id, Xtrans(Math::Vector3d(-0.00025, 0, -0.074)), L_joint_PELVIS_ROLL, L_body_PELVIS_2);
+	rbdl.body_PELVIS_2 = Body(0.565726, Math::Vector3d(-0.029274, -0.002813, -0.000043), rbdl.bodyI_PELVIS_2);
+	rbdl.joint_PELVIS_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0)); // pelvis roll
+	rbdl.body_PELVIS_2_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_1_id, Xtrans(Math::Vector3d(-0.00025, 0, -0.074)), rbdl.joint_PELVIS_ROLL, rbdl.body_PELVIS_2);
 
   //set_body_THIGH
-	L_body_THIGH = Body(1.897, Math::Vector3d(0.003474, 0.02006, -0.16412), L_bodyI_THIGH);
-	L_joint_PELVIS_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0)); // pelvis pitch
-	L_body_THIGH_id = L_rbdl_model->Model::AddBody(L_body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0)), L_joint_PELVIS_PITCH, L_body_THIGH);
+	rbdl.body_THIGH = Body(1.897, Math::Vector3d(0.003474, 0.02006, -0.16412), rbdl.bodyI_THIGH);
+	rbdl.joint_PELVIS_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0)); // pelvis pitch
+	rbdl.body_THIGH_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_PELVIS_PITCH, rbdl.body_THIGH);
   
 	//set_body_SHANK
-  L_body_SHANK = Body(2.2, Math::Vector3d(-0.007394, 0.00838, -0.18208), L_bodyI_SHANK);
-	L_joint_KNEE = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
-  L_body_SHANK_id = L_rbdl_model->Model::AddBody(L_body_THIGH_id, Xtrans(Math::Vector3d(-0.00013, 0, -0.25)), L_joint_KNEE, L_body_SHANK);
+  rbdl.body_SHANK = Body(2.2, Math::Vector3d(-0.007394, 0.00838, -0.18208), rbdl.bodyI_SHANK);
+	rbdl.joint_KNEE = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+  rbdl.body_SHANK_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_THIGH_id, Xtrans(Math::Vector3d(-0.00013, 0, -0.25)), rbdl.joint_KNEE, rbdl.body_SHANK);
 
 	//set_body_FOOT
-  L_body_FOOT = Body(0.854, Math::Vector3d(0.012113, 0.004647, -0.068225), L_bodyI_FOOT);
-	L_joint_ANKLE = Joint(SpatialVector(0, 1, 0, 0, 0, 0), SpatialVector(1, 0, 0, 0, 0, 0));
-	L_body_FOOT_id = L_rbdl_model->Model::AddBody(L_body_SHANK_id, Xtrans(Math::Vector3d(0, 0, -0.25)), L_joint_ANKLE, L_body_FOOT);
+  rbdl.body_FOOT = Body(0.854, Math::Vector3d(0.012113, 0.004647, -0.068225), rbdl.bodyI_FOOT);
+	rbdl.joint_ANKLE = Joint(SpatialVector(0, 1, 0, 0, 0, 0), SpatialVector(1, 0, 0, 0, 0, 0));
+	rbdl.body_FOOT_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_SHANK_id, Xtrans(Math::Vector3d(0, 0, -0.25)), rbdl.joint_ANKLE, rbdl.body_FOOT);
+}
 
-  //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
-	L_Q = VectorNd::Zero(L_rbdl_model->dof_count);
-	L_QDot = VectorNd::Zero(L_rbdl_model->dof_count);
-	L_QDDot = VectorNd::Zero(L_rbdl_model->dof_count);
-	L_prevQ = VectorNd::Zero(L_rbdl_model->dof_count);
-	L_prevQDot = VectorNd::Zero(L_rbdl_model->dof_count);
-  L_Tau = VectorNd::Zero(L_rbdl_model->dof_count);
-  L_Foot_Pos = VectorNd::Zero(6);
-  L_Foot_Pos_dot = VectorNd::Zero(6);
-  L_A_Jacobian = MatrixNd::Zero(6,6);
-  L_prev_A_Jacobian = MatrixNd::Zero(6,6);
-  L_A_Jacobian_dot = MatrixNd::Zero(6,6);
-  Inv_L_A_Jacobian = MatrixNd::Zero(6,6);
-  L_Des_X = VectorNd::Zero(6);
-  L_Des_XDot = VectorNd::Zero(6);
-  L_Des_XDDot = VectorNd::Zero(6);
-  L_torque_CTC = VectorNd::Zero(6);
-  Old_L_Des_X = VectorNd::Zero(6);
-  Old_L_Des_XDot = VectorNd::Zero(6);
-  Old_L_Des_XDDot = VectorNd::Zero(6);
-  New_L_Des_X = VectorNd::Zero(6);
-  New_L_Des_XDot = VectorNd::Zero(6);
-  New_L_Des_XDDot = VectorNd::Zero(6);
+void gazebo::SUBO3_plugin::R_Air_Model(A_RBDL &rbdl)
+{
+  rbdl.w_rollI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+  rbdl.w_roll = Body(0, Math::Vector3d(0, 0, 0), rbdl.w_rollI);
+  rbdl.joint_w_roll = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+  rbdl.w_roll_id = rbdl.rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_w_roll, rbdl.w_roll);
 
-  //init Q
-  L_Q(0) = 0, L_prevQ(0) = 0, L_prevQDot(0) = 0;  // base roll
-  L_Q(1) = 0, L_prevQ(1) = 0, L_prevQDot(1) = 0;  // base pitch
-  L_Q(2) = 0, L_prevQ(2) = 0, L_prevQDot(2) = 0;
-  L_Q(3) = 0, L_prevQ(3) = 0, L_prevQDot(3) = 0;  // pelvis yaw
-  L_Q(4) = 0, L_prevQ(4) = 0, L_prevQDot(4) = 0;  // pelvis roll
-  L_Q(5) = 0, L_prevQ(5) = 0, L_prevQDot(5) = 0;  // pelvis pitch
-  L_Q(6) = 0, L_prevQ(6) = 0, L_prevQDot(6) = 0;  // knee pitch
-  L_Q(7) = 0, L_prevQ(7) = 0, L_prevQDot(7) = 0;  // ankle pitch
-  L_Q(8) = 0, L_prevQ(8) = 0, L_prevQDot(8) = 0;  // ankle roll
+  rbdl.w_pitchI = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+  rbdl.w_pitch = Body(0, Math::Vector3d(0, 0, 0), rbdl.w_pitchI);
+  rbdl.joint_w_pitch = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+  rbdl.w_pitch_id = rbdl.rbdl_model->Model::AddBody(rbdl.w_roll_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_w_pitch, rbdl.w_pitch);
+
+  rbdl.bodyI_Base = Math::Matrix3d(0,0,0,0,0,0,0,0,0);
+	rbdl.body_Base = Body(0, Math::Vector3d(0, 0, 0), rbdl.bodyI_Base);
+	rbdl.joint_Base = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 0));
+	rbdl.body_Base_id = rbdl.rbdl_model->Model::AddBody(rbdl.w_pitch_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_Base, rbdl.body_Base);
 
   //********************RIGHT_LEG********************//
   //Inertia of Body
-  R_bodyI_PELVIS_1 = Math::Matrix3d(0.000419,0.000005,0.000133, 0.000005,0.001001,0.000018, 0.000133,0.000018,0.000820);
-  R_bodyI_PELVIS_2 = Math::Matrix3d(0.000262,0.000050,0.000001, 0.000050,0.000727,0.000002, 0.000001,0.000002,0.000757);
-  R_bodyI_THIGH = Math::Matrix3d(0.015886,0.000021,-0.000012, 0.000021,0.014439,0.000761, -0.000012,0.000761,0.002793);
-  R_bodyI_SHANK = Math::Matrix3d(0.018454,-0.000148,0.001029, -0.000148,0.017892,0.000337, 0.001029,0.000337,0.003522);
-  R_bodyI_FOOT = Math::Matrix3d(0.001594,-0.000050,-0.000455, -0.000050,0.003143,0.000103, -0.000455,0.000103,0.002851);
+  rbdl.bodyI_PELVIS_1 = Math::Matrix3d(0.000419,0.000005,0.000133, 0.000005,0.001001,0.000018, 0.000133,0.000018,0.000820);
+  rbdl.bodyI_PELVIS_2 = Math::Matrix3d(0.000262,0.000050,0.000001, 0.000050,0.000727,0.000002, 0.000001,0.000002,0.000757);
+  rbdl.bodyI_THIGH = Math::Matrix3d(0.015886,0.000021,-0.000012, 0.000021,0.014439,0.000761, -0.000012,0.000761,0.002793);
+  rbdl.bodyI_SHANK = Math::Matrix3d(0.018454,-0.000148,0.001029, -0.000148,0.017892,0.000337, 0.001029,0.000337,0.003522);
+  rbdl.bodyI_FOOT = Math::Matrix3d(0.001594,-0.000050,-0.000455, -0.000050,0.003143,0.000103, -0.000455,0.000103,0.002851);
   
   //set_body_PELVIS_1
-	R_body_PELVIS_1 = Body(0.530103, Math::Vector3d(-0.026622, 0.006227, -0.028069), R_bodyI_PELVIS_1);
-	R_joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1)); // pelvis yaw
-	R_body_PELVIS_1_id = R_rbdl_model->Model::AddBody(R_body_Base_id, Xtrans(Math::Vector3d(0, -0.07, 0)), R_joint_PELVIS_YAW, R_body_PELVIS_1);
+	rbdl.body_PELVIS_1 = Body(0.530103, Math::Vector3d(-0.026622, 0.006227, -0.028069), rbdl.bodyI_PELVIS_1);
+	rbdl.joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1)); // pelvis yaw
+	rbdl.body_PELVIS_1_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_Base_id, Xtrans(Math::Vector3d(0, -0.07, 0)), rbdl.joint_PELVIS_YAW, rbdl.body_PELVIS_1);
 	
   //set_body_PELVIS2
-	R_body_PELVIS_2 = Body(0.565726, Math::Vector3d(-0.029274, 0.002813, -0.000043), R_bodyI_PELVIS_2);
-	R_joint_PELVIS_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0)); // pelvis roll
-	R_body_PELVIS_2_id = R_rbdl_model->Model::AddBody(R_body_PELVIS_1_id, Xtrans(Math::Vector3d(-0.00025, 0, -0.074)), R_joint_PELVIS_ROLL, R_body_PELVIS_2);
+	rbdl.body_PELVIS_2 = Body(0.565726, Math::Vector3d(-0.029274, 0.002813, -0.000043), rbdl.bodyI_PELVIS_2);
+	rbdl.joint_PELVIS_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0)); // pelvis roll
+	rbdl.body_PELVIS_2_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_1_id, Xtrans(Math::Vector3d(-0.00025, 0, -0.074)), rbdl.joint_PELVIS_ROLL, rbdl.body_PELVIS_2);
 
 	//set_body_THIGH
-	R_body_THIGH = Body(1.897, Math::Vector3d(0.00335, -0.02006, -0.16411), R_bodyI_THIGH);
-	R_joint_PELVIS_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0)); //pelvis pitch
-	R_body_THIGH_id = R_rbdl_model->Model::AddBody(R_body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0)), R_joint_PELVIS_PITCH, R_body_THIGH);
+	rbdl.body_THIGH = Body(1.897, Math::Vector3d(0.00335, -0.02006, -0.16411), rbdl.bodyI_THIGH);
+	rbdl.joint_PELVIS_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0)); //pelvis pitch
+	rbdl.body_THIGH_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_PELVIS_PITCH, rbdl.body_THIGH);
 
 	//set_body_SHANK
-  R_body_SHANK = Body(2.2, Math::Vector3d(-0.00742, -0.00838, -0.18203), R_bodyI_SHANK);
-	R_joint_KNEE = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
-  R_body_SHANK_id = R_rbdl_model->Model::AddBody(R_body_THIGH_id, Xtrans(Math::Vector3d(-0.00013, 0, -0.25)), R_joint_KNEE, R_body_SHANK);
+  rbdl.body_SHANK = Body(2.2, Math::Vector3d(-0.00742, -0.00838, -0.18203), rbdl.bodyI_SHANK);
+	rbdl.joint_KNEE = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+  rbdl.body_SHANK_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_THIGH_id, Xtrans(Math::Vector3d(-0.00013, 0, -0.25)), rbdl.joint_KNEE, rbdl.body_SHANK);
 
 	//set_body_FOOT
-  R_body_FOOT = Body(0.854, Math::Vector3d(0.01206, -0.00475, -0.068478), R_bodyI_FOOT);
-	R_joint_ANKLE = Joint(SpatialVector(0, 1, 0, 0, 0, 0), SpatialVector(1, 0, 0, 0, 0, 0));
-	R_body_FOOT_id = R_rbdl_model->Model::AddBody(R_body_SHANK_id, Xtrans(Math::Vector3d(0, 0, -0.25)), R_joint_ANKLE, R_body_FOOT);
+  rbdl.body_FOOT = Body(0.854, Math::Vector3d(0.01206, -0.00475, -0.068478), rbdl.bodyI_FOOT);
+	rbdl.joint_ANKLE = Joint(SpatialVector(0, 1, 0, 0, 0, 0), SpatialVector(1, 0, 0, 0, 0, 0));
+	rbdl.body_FOOT_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_SHANK_id, Xtrans(Math::Vector3d(0, 0, -0.25)), rbdl.joint_ANKLE, rbdl.body_FOOT);
+}
 
-  //set Q, QDot, QDDot, prevQ, prevQDot // dof_count = num of degree
-	R_Q = VectorNd::Zero(R_rbdl_model->dof_count);
-	R_QDot = VectorNd::Zero(R_rbdl_model->dof_count);
-	R_QDDot = VectorNd::Zero(R_rbdl_model->dof_count);
-	R_prevQ = VectorNd::Zero(R_rbdl_model->dof_count);
-	R_prevQDot = VectorNd::Zero(R_rbdl_model->dof_count);
-  R_Tau = VectorNd::Zero(R_rbdl_model->dof_count);
-  R_Foot_Pos = VectorNd::Zero(6);
-  R_Foot_Pos_dot = VectorNd::Zero(6);
-  R_A_Jacobian = MatrixNd::Zero(6,6);
-  R_prev_A_Jacobian = MatrixNd::Zero(6,6);
-  R_A_Jacobian_dot = MatrixNd::Zero(6,6);
-  Inv_R_A_Jacobian = MatrixNd::Zero(6,6);
-  R_Des_X = VectorNd::Zero(6);
-  R_Des_XDot = VectorNd::Zero(6);
-  R_Des_XDDot = VectorNd::Zero(6);
-  R_torque_CTC = VectorNd::Zero(6);
-  Old_R_Des_X = VectorNd::Zero(6);
-  Old_R_Des_XDot = VectorNd::Zero(6);
-  Old_R_Des_XDDot = VectorNd::Zero(6);
-  New_R_Des_X = VectorNd::Zero(6);
-  New_R_Des_XDot = VectorNd::Zero(6);
-  New_R_Des_XDDot = VectorNd::Zero(6); 
+void gazebo::SUBO3_plugin::L_Ground_Model(G_RBDL &rbdl)
+{
+  //Inertia of Body
+  rbdl.bodyI_FOOT = Math::Matrix3d(0.000148,0,0, 0,0.000174,0.000002, 0,0.000002,0.000153);
+  rbdl.bodyI_SHANK = Math::Matrix3d(0.007532,-0.000015,0.000035, -0.000015,0.006612,-0.000288, 0.000035,-0.000228,0.001592);
+  rbdl.bodyI_THIGH = Math::Matrix3d(0.0024298,-0.000040,-0.000187, -0.000040,0.022793,0.000114, -0.000187,0.000114,0.003027);
+  rbdl.bodyI_PELVIS_1 = Math::Matrix3d(0.000262,-0.000050,0.000001, -0.000050,0.000727,-0.000002, 0.000001,-0.000002,0.000757);
+  rbdl.bodyI_PELVIS_2 = Math::Matrix3d(0.000419,-0.000005,0.000133, -0.000005,0.001001,-0.000018, 0.000133,-0.000018,0.000820);
+  rbdl.bodyI = Math::Matrix3d(0.033070,0.000598,-0.001242, 0.000598,0.034412,0.002446, -0.001242,0.002446,0.013281);
 
-  //init Q
-  R_Q(0) = 0, R_prevQ(0) = 0, R_prevQDot(0) = 0;  // base roll
-  R_Q(1) = 0, R_prevQ(1) = 0, R_prevQDot(1) = 0;  // base pitch
-  R_Q(2) = 0, R_prevQ(2) = 0, R_prevQDot(2) = 0;
-  R_Q(3) = 0, R_prevQ(3) = 0, R_prevQDot(3) = 0;  // pelvis yaw
-  R_Q(4) = 0, R_prevQ(4) = 0, R_prevQDot(4) = 0;  // pelvis roll
-  R_Q(5) = 0, R_prevQ(5) = 0, R_prevQDot(5) = 0;  // pelvis pitch
-  R_Q(6) = 0, R_prevQ(6) = 0, R_prevQDot(6) = 0;  // knee pitch
-  R_Q(7) = 0, R_prevQ(7) = 0, R_prevQDot(7) = 0;  // ankle pitch
-  R_Q(8) = 0, R_prevQ(8) = 0, R_prevQDot(8) = 0;  // ankle roll
+	//set_body_FOOT
+  rbdl.body_FOOT = Body(0.398, Math::Vector3d(-0.00004, 0.037051, 0.000415), rbdl.bodyI_FOOT);
+	rbdl.joint_ANKLE_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+  rbdl.body_FOOT_id = rbdl.rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_ANKLE_ROLL, rbdl.body_FOOT);
+
+  //set_body_SHANK
+  rbdl.body_SHANK = Body(0.960, Math::Vector3d(0.000138, 0.010092, 0.142584), rbdl.bodyI_SHANK);
+	rbdl.joint_ANKLE_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+  rbdl.body_SHANK_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_FOOT_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_ANKLE_PITCH, rbdl.body_SHANK);
+
+  //set_body_THIGH
+	rbdl.body_THIGH = Body(2.258, Math::Vector3d(0.002914, 0.022867, 0.112161), rbdl.bodyI_THIGH);
+	rbdl.joint_KNEE_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+	rbdl.body_THIGH_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_SHANK_id, Xtrans(Math::Vector3d(0, 0, 0.25)), rbdl.joint_KNEE_PITCH, rbdl.body_THIGH);
+
+  //set_body_PELVIS_1
+	rbdl.body_PELVIS_1 = Body(0.565726, Math::Vector3d(-0.029270, -0.002813, -0.000043), rbdl.bodyI_PELVIS_1);
+	rbdl.joint_PELVIS_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+	rbdl.body_PELVIS_1_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_THIGH_id, Xtrans(Math::Vector3d(0, 0, 0.25)), rbdl.joint_PELVIS_PITCH, rbdl.body_PELVIS_1);
+	
+  //set_body_PELVIS2
+	rbdl.body_PELVIS_2 = Body(0.530103, Math::Vector3d(-0.026369, -0.006227, 0.045931), rbdl.bodyI_PELVIS_2);
+	rbdl.joint_PELVIS_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+	rbdl.body_PELVIS_2_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_1_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_PELVIS_ROLL, rbdl.body_PELVIS_2);
+
+  //set_body_PELVIS2
+	rbdl.body = Body(4.226168, Math::Vector3d(-0.019955, -0.005266, 0.142614), rbdl.bodyI);
+	rbdl.joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1));
+	rbdl.body_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0.074)), rbdl.joint_PELVIS_YAW, rbdl.body);
+}
+
+void gazebo::SUBO3_plugin::R_Ground_Model(G_RBDL &rbdl)
+{
+  //Inertia of Body
+  rbdl.bodyI_FOOT = Math::Matrix3d(0.000148,0,0, 0,0.000174,-0.000002, 0,-0.000002,0.000153);
+  rbdl.bodyI_SHANK = Math::Matrix3d(0.007532,0.000015,0.000035, 0.000015,0.006612,0.000288, 0.000035,0.000228,0.001592);
+  rbdl.bodyI_THIGH = Math::Matrix3d(0.0024298,0.000040,-0.000187, 0.000040,0.022793,-0.000114, -0.000187,-0.000114,0.003027);
+  rbdl.bodyI_PELVIS_1 = Math::Matrix3d(0.000262,0.000050,0.000001, 0.000050,0.000727,0.000002, 0.000001,0.000002,0.000757);
+  rbdl.bodyI_PELVIS_2 = Math::Matrix3d(0.000419,0.000005,0.000133, 0.000005,0.001001,0.000018, 0.000133,0.000018,0.000820);
+  rbdl.bodyI = Math::Matrix3d(0.033070,-0.000598,-0.001242, -0.000598,0.034412,-0.002446, -0.001242,-0.002446,0.013281);
+
+	//set_body_FOOT
+  rbdl.body_FOOT = Body(0.398, Math::Vector3d(-0.00004, -0.037051, 0.000415), rbdl.bodyI_FOOT);
+	rbdl.joint_ANKLE_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+  rbdl.body_FOOT_id = rbdl.rbdl_model->Model::AddBody(0, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_ANKLE_ROLL, rbdl.body_FOOT);
+
+  //set_body_SHANK
+  rbdl.body_SHANK = Body(0.960, Math::Vector3d(0.000138, -0.010092, 0.142584), rbdl.bodyI_SHANK);
+	rbdl.joint_ANKLE_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+  rbdl.body_SHANK_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_FOOT_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_ANKLE_PITCH, rbdl.body_SHANK);
+
+  //set_body_THIGH
+	rbdl.body_THIGH = Body(2.258, Math::Vector3d(0.002914, -0.022867, 0.112161), rbdl.bodyI_THIGH);
+	rbdl.joint_KNEE_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+	rbdl.body_THIGH_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_SHANK_id, Xtrans(Math::Vector3d(0, 0, 0.25)), rbdl.joint_KNEE_PITCH, rbdl.body_THIGH);
+
+  //set_body_PELVIS_1
+	rbdl.body_PELVIS_1 = Body(0.565726, Math::Vector3d(-0.029270, 0.002813, -0.000043), rbdl.bodyI_PELVIS_1);
+	rbdl.joint_PELVIS_PITCH = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 1, 0));
+	rbdl.body_PELVIS_1_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_THIGH_id, Xtrans(Math::Vector3d(0, 0, 0.25)), rbdl.joint_PELVIS_PITCH, rbdl.body_PELVIS_1);
+	
+  //set_body_PELVIS2
+	rbdl.body_PELVIS_2 = Body(0.530103, Math::Vector3d(-0.026369, 0.006227, 0.045931), rbdl.bodyI_PELVIS_2);
+	rbdl.joint_PELVIS_ROLL = Joint(JointType::JointTypeRevolute, Math::Vector3d(1, 0, 0));
+	rbdl.body_PELVIS_2_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_1_id, Xtrans(Math::Vector3d(0, 0, 0)), rbdl.joint_PELVIS_ROLL, rbdl.body_PELVIS_2);
+
+  //set_body_PELVIS2
+	rbdl.body = Body(4.226168, Math::Vector3d(-0.019955, 0.005266, 0.142614), rbdl.bodyI);
+	rbdl.joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1));
+	rbdl.body_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0.074)), rbdl.joint_PELVIS_YAW, rbdl.body);
 }
 
 void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
@@ -717,6 +787,7 @@ void gazebo::SUBO3_plugin::InitROSPubSetting()
   m_ros_msg.data.resize(50);
   server_sub1 = n.subscribe("Ctrl_mode", 1, &gazebo::SUBO3_plugin::Callback1, this);
   server_sub2 = n.subscribe("CTC_msg", 100, &gazebo::SUBO3_plugin::msgCallback, this);
+  server_sub3 = n.subscribe("GROUND_CTC_msg", 100, &gazebo::SUBO3_plugin::msgCallback2, this);
 }
 
 void gazebo::SUBO3_plugin::SensorSetting()
@@ -761,10 +832,7 @@ void gazebo::SUBO3_plugin::IMUSensorRead()
 
 void gazebo::SUBO3_plugin::FTSensorRead()
 {
-  FTsensorTransformation();
-  
   // Force applied on left leg
-  
   wrench = this->L_FOOTPAD_JOINT->GetForceTorque(0);
   force = wrench.body2Force.Ign();
   torque = wrench.body2Torque.Ign();
@@ -774,7 +842,6 @@ void gazebo::SUBO3_plugin::FTSensorRead()
   L_Torque_E[0] = torque.X();
   L_Torque_E[1] = torque.Y();
   L_Torque_E[2] = torque.Z();
-  L_Force_I = L_LEG.T_matrix*L_Force_E;
   
   // Force applied on right leg
   
@@ -787,31 +854,6 @@ void gazebo::SUBO3_plugin::FTSensorRead()
   R_Torque_E[0] = torque.X();
   R_Torque_E[1] = torque.Y();
   R_Torque_E[2] = torque.Z();
-  R_Force_I = R_LEG.T_matrix*R_Force_E;
-}
-
-void gazebo::SUBO3_plugin::FTsensorTransformation()
-{
-  MatrixXd L_PELVIS_YAW(3, 3), L_PELVIS_ROLL(3, 3), L_PELVIS_PITCH(3, 3), L_KNEE_PITCH(3, 3), L_ANKLE_PITCH(3, 3), L_ANKLE_ROLL(3, 3);
-  MatrixXd R_PELVIS_YAW(3, 3), R_PELVIS_ROLL(3, 3), R_PELVIS_PITCH(3, 3), R_KNEE_PITCH(3, 3), R_ANKLE_PITCH(3, 3), R_ANKLE_ROLL(3, 3);
-  
-  L_PELVIS_YAW << cos(actual_joint_pos[0]), -sin(actual_joint_pos[0]), 0, sin(actual_joint_pos[0]), cos(actual_joint_pos[0]), 0, 0, 0, 1;
-  L_PELVIS_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[1]), -sin(actual_joint_pos[1]), 0, sin(actual_joint_pos[1]), cos(actual_joint_pos[1]);
-  L_PELVIS_PITCH << cos(actual_joint_pos[2]), 0, sin(actual_joint_pos[2]), 0, 1, 0, -sin(actual_joint_pos[2]), 0, cos(actual_joint_pos[2]);
-  L_KNEE_PITCH << cos(actual_joint_pos[3]), 0, sin(actual_joint_pos[3]), 0, 1, 0, -sin(actual_joint_pos[3]), 0, cos(actual_joint_pos[3]);
-  L_ANKLE_PITCH << cos(actual_joint_pos[4]), 0, sin(actual_joint_pos[4]), 0, 1, 0, -sin(actual_joint_pos[4]), 0, cos(actual_joint_pos[4]);
-  L_ANKLE_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[5]), -sin(actual_joint_pos[5]), 0, sin(actual_joint_pos[5]), cos(actual_joint_pos[5]);
-  L_LEG.T_matrix = L_PELVIS_YAW * L_PELVIS_ROLL * L_PELVIS_PITCH * L_KNEE_PITCH * L_ANKLE_PITCH * L_ANKLE_ROLL;
-  Left_LEG.T_matrix = L_PELVIS_YAW * L_PELVIS_ROLL * L_PELVIS_PITCH * L_KNEE_PITCH * L_ANKLE_PITCH * L_ANKLE_ROLL;
-
-  R_PELVIS_YAW << cos(actual_joint_pos[6]), -sin(actual_joint_pos[6]), 0, sin(actual_joint_pos[6]), cos(actual_joint_pos[6]), 0, 0, 0, 1;
-  R_PELVIS_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[7]), -sin(actual_joint_pos[7]), 0, sin(actual_joint_pos[7]), cos(actual_joint_pos[7]);
-  R_PELVIS_PITCH << cos(actual_joint_pos[8]), 0, sin(actual_joint_pos[8]), 0, 1, 0, -sin(actual_joint_pos[8]), 0, cos(actual_joint_pos[8]);
-  R_KNEE_PITCH << cos(actual_joint_pos[9]), 0, sin(actual_joint_pos[9]), 0, 1, 0, -sin(actual_joint_pos[9]), 0, cos(actual_joint_pos[9]);
-  R_ANKLE_PITCH << cos(actual_joint_pos[10]), 0, sin(actual_joint_pos[10]), 0, 1, 0, -sin(actual_joint_pos[10]), 0, cos(actual_joint_pos[10]);
-  R_ANKLE_ROLL << 1, 0, 0, 0, cos(actual_joint_pos[11]), -sin(actual_joint_pos[11]), 0, sin(actual_joint_pos[11]), cos(actual_joint_pos[11]);
-  R_LEG.T_matrix = R_PELVIS_YAW * R_PELVIS_ROLL * R_PELVIS_PITCH * R_KNEE_PITCH * R_ANKLE_PITCH * R_ANKLE_ROLL;
-  Right_LEG.T_matrix = R_PELVIS_YAW * R_PELVIS_ROLL * R_PELVIS_PITCH * R_KNEE_PITCH * R_ANKLE_PITCH * R_ANKLE_ROLL;
 }
 
 void gazebo::SUBO3_plugin::EncoderRead()
@@ -833,7 +875,7 @@ void gazebo::SUBO3_plugin::EncoderRead()
   //************************** Encoder (dot)********************************//
   for (int i = 0; i < 12; i++)
   {
-    actual_joint_vel[i] = (actual_joint_pos[i] - pre_actual_joint_pos[i]) / dt;
+    actual_joint_vel[i] = (actual_joint_pos[i] - pre_actual_joint_pos[i]) / (dt*2);
     pre_actual_joint_pos[i] = actual_joint_pos[i];
   }
   for (int i = 0; i < 6; i++)
@@ -841,966 +883,6 @@ void gazebo::SUBO3_plugin::EncoderRead()
     Act_LL_th[i] = double(actual_joint_pos[i]);
     Act_RL_th[i] = double(actual_joint_pos[i+6]);
   }
-}
-
-void BRP_RL_IK(double Ref_RL_RP[6], double Init_th[6], double IK_th[6])  // (2015_07_29)
-{
-	int iter,i,j,k;
-	double th[6] = {0.,0.,0.,0.,0.,0.}, PR[6] = {0.,0.,0.,0.,0.,0.}, old_PR[6] = {0.,0.,0.,0.,0.,0.}, F[6] = {0.,0.,0.,0.,0.,0.}, old_Q[6] = {0.,0.,0.,0.,0.,0.}, 
-			New_Q4J[6] = {0.,0.,0.,0.,0.,0.}, ERR = 0., sum = 0.,
-			New_PR[6][6] = {{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.}}, 
-			J[6][6] = {{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.}},
-			Inv_J[6][6] = {{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.}};
-	const double del_Q = 0.0001;
-	
-	// Initial Joint angles //
-	for (i=0; i < 6; i++) th[i] = Init_th[i];
-	
-	for (iter = 0; iter < 100; iter++)
-  {
-    for (i=0; i < 6; i++)	old_Q[i] = th[i];
-
-    // Forward Kinematics
-    BRP_RL_FK(th, PR);
-
-    // Error calculation
-    for (i=0; i < 6; i++) F[i] = Ref_RL_RP[i] - PR[i];
-	
-    ERR = sqrt(F[0]*F[0] + F[1]*F[1] + F[2]*F[2] + F[3]*F[3] + F[4]*F[4] + F[5]*F[5]);
-
-    if(iter == 5)
-    {
-      
-    }
-
-    if (ERR < 0.0000001)
-    { 
-      for(i=0; i < 6; i++)	IK_th[i] = th[i];
-      std::cout << "iter = " << iter << std::endl;
-      break;
-    }
-    else if(iter == 99)
-    {
-      for(i=0; i < 6; i++)	IK_th[i] = Init_th[i];
-      std::cout << "iter = 99" << std::endl;
-      break;
-    }
-
-    // Jacobian Cacluation using perturbation //
-    for(i=0; i<6; i++) old_PR[i] = PR[i];
-
-    for(i=0; i<6; i++)
-    {
-    
-      for(j=0; j<6; j++) New_Q4J[j] = old_Q[j];  // Reset
-
-      New_Q4J[i] = old_Q[i] + del_Q; // Perturb
-
-      // Forward Kinematics again //
-      BRP_RL_FK(New_Q4J, PR);
-  
-      for(j = 0; j<6; j++) New_PR[j][i] = PR[j];
-    } // End of for(i=0; i<6; i++){
-
-    for(i = 0; i<6; i++)
-      for(j = 0; j<6; j++)
-        J[i][j] = (New_PR[i][j] - old_PR[i])/del_Q;
-
-    inv_mat6(0,6,0,J,0,Inv_J);
-   
-    for(k=0; k < 6; k++)
-    {
-      sum = 0.;
-      for(j=0; j < 6;j++)
-      {
-        sum = sum + Inv_J[k][j]*F[j];
-      }
-      
-      th[k] = old_Q[k] + sum;
-    }
-
-    if (th[3] < 0)
-    {
-      th[3] = -th[3];
-    }
-	} // End of for (iter = 0; iter <= 100; iter++) {
-}
-
-void BRP_LL_IK(double Ref_LL_RP[6], double Init_th[6], double IK_th[6])  // (2015_07_29)
-{
-	int iter,i,j,k;
-	double th[6] = {0.,0.,0.,0.,0.,0.}, PR[6] = {0.,0.,0.,0.,0.,0.}, old_PR[6] = {0.,0.,0.,0.,0.,0.}, F[6] = {0.,0.,0.,0.,0.,0.}, old_Q[6] = {0.,0.,0.,0.,0.,0.},
-			New_Q4J[6] = {0.,0.,0.,0.,0.,0.}, ERR = 0., sum = 0.,
-			New_PR[6][6] = {{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.}}, 
-			J[6][6] = {{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.}},
-			Inv_J[6][6] = {{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.},{0.,0.,0.,0.,0.,0.}};
-	const double del_Q = 0.0001;
-	
-	// Initial Joint angles //
-	for (i=0; i < 6; i++) th[i] = Init_th[i];
-	
-	for (iter = 0; iter < 100; iter++)
-  {
-		for (i=0; i < 6; i++)	old_Q[i] = th[i];
-
-    // Forward Kinematics
-    BRP_LL_FK(th, PR);
-
-    // Error calculation
-    for (i=0; i < 6; i++) F[i] = Ref_LL_RP[i] - PR[i];
-
-    ERR = sqrt(F[0]*F[0] + F[1]*F[1] + F[2]*F[2] + F[3]*F[3] + F[4]*F[4] + F[5]*F[5]);
-    if(iter == 5)
-    {
-      //std::cout << "LL_ERR = " << ERR << std::endl;
-    }
-
-    if (ERR < 0.0000001) { 
-      for(i=0; i < 6; i++)	IK_th[i] = th[i];
-      break;
-    }
-    else if(iter == 99){
-      for(i=0; i < 6; i++)	IK_th[i] = Init_th[i];
-      std::cout << "iter = 99" << std::endl;
-      break;
-    }
-
-    // Jacobian Cacluation using perturbation //
-    for(i=0; i<6; i++) old_PR[i] = PR[i];
-
-    for(i=0; i<6; i++)
-    {
-      for(j=0; j<6; j++) New_Q4J[j] = old_Q[j];  // Reset
-
-      New_Q4J[i] = old_Q[i] + del_Q; // Perturb
-
-      // Forward Kinematics again //
-      BRP_LL_FK(New_Q4J, PR);
-  
-      for(j = 0; j<6; j++) New_PR[j][i] = PR[j];
-    } // End of for(i=0; i<6; i++){
-
-    for(i = 0; i<6; i++)
-      for(j = 0; j<6; j++)
-        J[i][j] = (New_PR[i][j] - old_PR[i])/del_Q;
-
-    inv_mat6(0,6,0,J,0,Inv_J);
-
-    for(k=0; k < 6; k++)
-    {
-      sum = 0.;
-      for(j=0; j < 6;j++)
-      {
-        sum = sum + Inv_J[k][j]*F[j];
-      }
-
-      th[k] = old_Q[k] + sum;
-    }
-
-    if (th[3] < 0)
-    {
-      th[3] = -th[3];
-    }
-	} // End of for (iter = 0; iter <= 100; iter++) {
-}
-
-void BRP_R2L_IK(double Ref_RP[12], double Init_th[12], double IK_th[12])  // 12DOF IK푸는식
-{
-	int iter,i,j,k;
-	double th[12] = {0.,},th_R[6] = {0.,}, th_L[6] = {0.,}, PR[12] = {0.,}, old_PR[12] = {0.,}, F[12] = {0.,}, old_Q[12] = {0.,},
-			New_Q4J[12] = {0.,},New_Q4J_R[6] = {0.,},New_Q4J_L[6] = {0.,}, ERR = 0., sum = 0.,
-			New_PR[12][12] = {{0.,},{0.,},{0.,},{0.,},{0.,},{0.,}},
-			J[12][12] = {{0.,},},
-			Inv_J[12][12] = {{0.,},};
-
-	MatrixXd eigen_J = MatrixXd::Zero(12,12);
-	MatrixXd eigen_J_Inv = MatrixXd::Zero(12,12);
-	MatrixXd eigen_Inv_J = MatrixXd::Zero(12,12);
-	MatrixXd PC2RF_RPY = MatrixXd::Zero(3,3);
-	MatrixXd RF2PC_RPY = MatrixXd::Zero(3,3);
-	MatrixXd PC2LF_RPY = MatrixXd::Zero(3,3);
-	MatrixXd RF2LF_RPY = MatrixXd::Zero(3,3);
-	VectorXd Ref_PR_eigen = VectorXd::Zero(12);
-	VectorXd Temp = VectorXd::Zero(3);
-
-	double RF2PC_PR[6] = {0.,}, RF2LF_PR[6]={0.,};
-	double nx,ny,nz,ox,oy,oz,ax,ay,az;
-
-	const double del_Q = 0.0001; // 0.0001
-	
-  // Initial Joint angles //
-	for (int i=0; i < 12; i++) th[i] = Init_th[i]; 
-	
-	for (int iter = 0; iter < 100; iter++) //iter<100
-  {
-		//c_cnt++;
-		//if(c_cnt > 3) break;
-		for (int i=0; i < 12; i++)	old_Q[i] = th[i];
-		
-    // Forward Kinematics
-		//for(int j=0; j<12; j++) std::cout<<"th["<<j<<"] : "<<th[j]<<endl;
-		BRP_RL2PC_FK(th,PR);
-		//for(int j=0; j<12; j++) std::cout<<"PR["<<j<<"] : "<<PR[j]<<endl;
-		
-    //오른발 좌표계에서 바라본 골반 좌표계의 참조 롤/피치/요 회전 행렬
-    PC2RF_RPY << cos(Ref_RP[5])*cos(Ref_RP[4]), -sin(Ref_RP[5])*cos(Ref_RP[3])+cos(Ref_RP[5])*sin(Ref_RP[4])*sin(Ref_RP[3]), sin(Ref_RP[5])*sin(Ref_RP[3])+cos(Ref_RP[5])*sin(Ref_RP[4])*cos(Ref_RP[3]),
-    		sin(Ref_RP[5])*cos(Ref_RP[4]), cos(Ref_RP[5])*cos(Ref_RP[3])+sin(Ref_RP[5])*sin(Ref_RP[4])*sin(Ref_RP[3]), -cos(Ref_RP[5])*sin(Ref_RP[3])+sin(Ref_RP[5])*sin(Ref_RP[4])*cos(Ref_RP[3]),
-		    -sin(Ref_RP[4]), cos(Ref_RP[4])*sin(Ref_RP[3]), cos(Ref_RP[4])*cos(Ref_RP[3]); 
-
-		RF2PC_RPY = PC2RF_RPY.inverse();
-		
-		//std::cout<<"RF2PC_RPY"<<std::endl;
-    //std::cout<<RF2PC_RPY<<std::endl;
-
-    //골반 좌표계에서 바라본 왼발 좌표계의 참조 롤/피치/요 회전 행렬
-    PC2LF_RPY << cos(Ref_RP[11])*cos(Ref_RP[10]), -sin(Ref_RP[11])*cos(Ref_RP[9])+cos(Ref_RP[11])*sin(Ref_RP[10])*sin(Ref_RP[9]), sin(Ref_RP[11])*sin(Ref_RP[9])+cos(Ref_RP[11])*sin(Ref_RP[10])*cos(Ref_RP[9]),
-		    sin(Ref_RP[11])*cos(Ref_RP[10]), cos(Ref_RP[11])*cos(Ref_RP[9])+sin(Ref_RP[11])*sin(Ref_RP[10])*sin(Ref_RP[9]), -cos(Ref_RP[11])*sin(Ref_RP[9])+sin(Ref_RP[11])*sin(Ref_RP[10])*cos(Ref_RP[9]),
-		    -sin(Ref_RP[10]), cos(Ref_RP[10])*sin(Ref_RP[9]), cos(Ref_RP[10])*cos(Ref_RP[9]);
-	
-		//std::cout<<"PC2LF_RPY"<<std::endl;
-    //std::cout<<PC2LF_RPY<<std::endl;
-	
-		//오른발 좌표계에서 바라본 골반 좌표계의 참조 롤/피치/요 오일러 각도 계산
-    nx = RF2PC_RPY(0,0); ny = RF2PC_RPY(1,0); nz = RF2PC_RPY(2,0); 
-		ox = RF2PC_RPY(0,1); oy = RF2PC_RPY(1,1); oz = RF2PC_RPY(2,1);
-    ax = RF2PC_RPY(0,2); ay = RF2PC_RPY(1,2); az = RF2PC_RPY(2,2);
-		
-    RF2PC_PR[5] = atan2(ny,nx);  // FI : Roll about z0 axis
-    RF2PC_PR[4] = atan2(-nz,cos(RF2PC_PR[5])*nx + sin(RF2PC_PR[5])*ny);  // theta : Pitch about y0 axis
-    RF2PC_PR[3] = atan2(sin(RF2PC_PR[5])*ax - cos(RF2PC_PR[5])*ay, -sin(RF2PC_PR[5])*ox + cos(RF2PC_PR[5])*oy) ; // csi : Yaw about x0 axis
-
-		//오른발 좌표계에서 바라본 왼발 좌표계의 참조 롤/피치/요 회전 행렬
-    RF2LF_RPY =  RF2PC_RPY*PC2LF_RPY;
-
-    //오른발 좌표계에서 바라본 왼발 좌표계의 참조 롤/피치/요 오일러 각도 계산
-    nx = RF2LF_RPY(0,0); ny = RF2LF_RPY(1,0); nz = RF2LF_RPY(2,0); 
-		ox = RF2LF_RPY(0,1); oy = RF2LF_RPY(1,1); oz = RF2LF_RPY(2,1);
-    ax = RF2LF_RPY(0,2); ay = RF2LF_RPY(1,2); az = RF2LF_RPY(2,2);
-	
-		RF2LF_PR[5] = atan2(ny,nx);  // FI : Roll about z0 axis
-    RF2LF_PR[4] = atan2(-nz,cos(RF2LF_PR[5])*nx + sin(RF2LF_PR[5])*ny);  // theta : Pitch about y0 axis
-    RF2LF_PR[3] = atan2(sin(RF2LF_PR[5])*ax - cos(RF2LF_PR[5])*ay, -sin(RF2LF_PR[5])*ox + cos(RF2LF_PR[5])*oy) ; // csi : Yaw about x0 axis
-
-		//Desired X 와의 Error Vector 구하기 
-
-		//오른발 좌표계에서 바라본 골반의 위치/방위 오차 벡터 계산
-		for(int i =0; i<12; i++) Ref_PR_eigen(i) = Ref_RP[i];
-		//std::cout<<"Ref_PR_eigen"<<std::endl;
-		//std::cout<<Ref_PR_eigen<<std::endl;
-
-    Temp(0) = -RL_T_80[0][0]*Ref_PR_eigen(0)-RL_T_80[0][1]*Ref_PR_eigen(1)-RL_T_80[0][2]*Ref_PR_eigen(2);
-		Temp(1) = -RL_T_80[1][0]*Ref_PR_eigen(0)-RL_T_80[1][1]*Ref_PR_eigen(1)-RL_T_80[1][2]*Ref_PR_eigen(2);
-		Temp(2) = -RL_T_80[2][0]*Ref_PR_eigen(0)-RL_T_80[2][1]*Ref_PR_eigen(1)-RL_T_80[2][2]*Ref_PR_eigen(2);
-
-    F[0] = Temp(0) -  PR[0];
-    F[1] = Temp(1) -  PR[1];
-    F[2] = Temp(2) -  PR[2];
-    F[3] = RF2PC_PR[3] -  PR[3];
-    F[4] = RF2PC_PR[4] -  PR[4];
-    F[5] = RF2PC_PR[5] -  PR[5];
-    
-    //오른발 좌표계에서 바라본 왼발의 위치/방위 오차 벡터 계산
-
-    Temp(0) = RL_T_80[0][0]*(Ref_PR_eigen(6)-Ref_PR_eigen(0))+RL_T_80[0][1]*(Ref_PR_eigen(7)-Ref_PR_eigen(1))+RL_T_80[0][2]*(Ref_PR_eigen(8)-Ref_PR_eigen(2));
-		Temp(1) = RL_T_80[1][0]*(Ref_PR_eigen(6)-Ref_PR_eigen(0))+RL_T_80[1][1]*(Ref_PR_eigen(7)-Ref_PR_eigen(1))+RL_T_80[1][2]*(Ref_PR_eigen(8)-Ref_PR_eigen(2));
-		Temp(2) = RL_T_80[2][0]*(Ref_PR_eigen(6)-Ref_PR_eigen(0))+RL_T_80[2][1]*(Ref_PR_eigen(7)-Ref_PR_eigen(1))+RL_T_80[2][2]*(Ref_PR_eigen(8)-Ref_PR_eigen(2));
-		
-    F[6] = Temp(0) - PR[6];
-    F[7] = Temp(1) - PR[7];
-    F[8] = Temp(2) - PR[8];
-    F[9] = RF2LF_PR[3] - PR[9];
-    F[10] = RF2LF_PR[4] - PR[10];
-    F[11] = RF2LF_PR[5] - PR[11];
-	
-		//전체 오차 크기 계산
-    ERR = sqrt(F[0]*F[0] + F[1]*F[1] + F[2]*F[2] + F[3]*F[3] + F[4]*F[4] + F[5]*F[5] + F[6]*F[6] + F[7]*F[7] + F[8]*F[8] + F[9]*F[9] + F[10]*F[10] + F[11]*F[11]);
-		//std::cout<<"ERR : "<<ERR<<endl;
-	
-		if (ERR < 0.00000015) //0.00000015
-    {
-			for(int i=0; i < 12; i++)	IK_th[i] = th[i];
-			std::cout << "iter = " << iter << std::endl;
-			break;
-		}
-		else if(iter == 99)
-    {
-			for(int i=0; i < 12; i++)	IK_th[i] = Init_th[i];
-			std::cout << "iter = 99" << std::endl;
-			break;
-		}
-	
-		// Jacobian Cacluation using perturbation //
-		for(int i=0; i<12; i++) old_PR[i] = PR[i];
-		for(int i=0; i<12; i++)
-    {
-			for(int j=0; j<12; j++) New_Q4J[j] = old_Q[j];  // Reset
-						
-			New_Q4J[i] = old_Q[i] + del_Q; // Perturb
-			//std::cout << "New_Q4J[" <<i<<"] = " <<New_Q4J[i] << std::endl;
-			
-			// Forward Kinematics again //
-			BRP_RL2PC_FK(New_Q4J,PR);
-
-			//for(int j=0; j<12; j++) std::cout<<"PR["<<j<<"] : "<<PR[j]<<endl;
-
-			for(int j = 0; j<12; j++)
-			{
-				New_PR[j][i] = PR[j];
-			}
-		} // End of for(i=0; i<12; i++){	
-
-		/*
-		std::cout << "New_PR:" << std::endl;
-		for (int i = 0; i < 12; i++)
-		{
-			for (int j = 0; j < 12; j++)
-			{
-				std::cout << "\t" << New_PR[i][j];
-			}
-		std::cout << std::endl; // 엔터
-		}			
-		*/
-
-		for(int i = 0; i<12; i++)
-    {
-			for(int j = 0; j<12; j++)
-      {
-				J[i][j] = (New_PR[i][j] - old_PR[i])*10000; //del_Q = 0.0001;
-			}
-		}
-
-		/*
-		std::cout << "old_PR:" << std::endl;
-		for (int i = 0; i < 12; i++)
-		{
-			for (int j = 0; j < 12; j++)
-			{
-				std::cout << "\t" << old_PR[i];
-			}
-		std::cout << std::endl; // 엔터
-		}
-		*/
-		/*
-		std::cout << "J:" << std::endl;
-		for (int i = 0; i < 12; i++)
-		{
-			for (int j = 0; j < 12; j++)
-			{
-				std::cout << "\t" << J[i][j];
-				eigen_J(i,j)= J[i][j];
-			}
-		//std::cout << std::endl; // 엔터
-		}
-		*/
-		
-		inv_mat12(0,12,J,Inv_J);
-
-		/*
-		std::cout << "Inv_J:" << std::endl;
-		for (int i = 0; i < 12; i++)
-		{
-			for (int j = 0; j < 12; j++)
-			{	
-				std::cout << "\t" << Inv_J[i][j];
-				eigen_Inv_J(i,j) = Inv_J[i][j];
-			}
-		std::cout << std::endl; // 엔터
-		}
-		std::cout<<"eigen_J*eigen_Inv_J : "<<std::endl;
-		std::cout<<eigen_J*eigen_Inv_J<<std::endl;
-		*/
-  
-		for(int k=0; k < 12; k++)
-		{
-	  	sum = 0.;
-			for(int j=0; j < 12;j++)
-			{
-				sum = sum + Inv_J[k][j]*F[j];
-			}
-			th[k] = old_Q[k] + sum;
-			//std::cout<<"sum["<<k<<"] : "<<sum<<std::endl;
-			//std::cout << "th["<<k<<"] : " <<th[k]<<std::endl;
-		}
-		
-		if (th[3] < 0)
-    {
-			th[3] = -th[3];
-		}
-		if (th[9] < 0)
-    {
-			th[9] = -th[9];
-		}
-	} // End of for (iter = 0; iter <= 100; iter++) {
-}
-
-void BRP_12DOF_IK(double Ref_RP[12], double Init_th[12], double IK_th[12])  // 12DOF IK푸는식
-{
-	int iter,i,j,k;
-	double th[12] = {0.,}, th_R[6] = {0.,}, th_L[6] = {0.,}, PR[12] = {0.,}, old_PR[12] = {0.,}, F[12] = {0.,}, old_Q[12] = {0.,}, RL_PR[6] = {0.,},
-      LL_PR[6] = {0.,},	New_Q4J[12] = {0.,}, New_Q4J_R[6] = {0.,}, New_Q4J_L[6] = {0.,}, ERR = 0., sum = 0., New_PR[12][12] = {{0.,},{0.,},{0.,},{0.,},{0.,},{0.,}},
-			J[12][12] = {{0.,},}, Inv_J[12][12] = {{0.,},};
-	MatrixXd eigen_J = MatrixXd::Zero(12,12);
-	MatrixXd eigen_J_Inv = MatrixXd::Zero(12,12);
-	MatrixXd eigen_Inv_J = MatrixXd::Zero(12,12);
-	const double del_Q = 0.0001; // 0.0001
-	
-  // Initial Joint angles //
-	for (int i=0; i < 12; i++) th[i] = Init_th[i]; 
-	
-	for (int iter = 0; iter < 100; iter++) //iter<100
-  {
-    //c_cnt++;
-    //if(c_cnt > 3) break;
-    for (int i=0; i < 12; i++)	old_Q[i] = th[i];
-    for (int i = 0; i < 6; i++){th_R[i] = th[i]; th_L[i] = th[i+6];}
-    
-    // Forward Kinematics
-    BRP_RL_FK(th_R, RL_PR);
-    BRP_LL_FK(th_L, LL_PR);
-
-    for(int i = 0; i<6; i++)
-    {
-      PR[i] = RL_PR[i]; PR[i+6] = LL_PR[i];
-      //std::cout<<"RL_PR["<<i<<"] = "<<RL_PR[i]<<std::endl;
-      //std::cout<<"LL_PR["<<i<<"] = "<<LL_PR[i]<<std::endl;
-    }
-    
-    // Error calculation
-    for (int i=0; i < 12; i++) F[i] = Ref_RP[i] - PR[i];
-    //for (int i=0; i < 12; i++) std::cout<<"Ref_RP["<<i<<"] = "<<Ref_RP[i]<<std::endl;
-    //for (int i=0; i < 12; i++) std::cout<<"PR["<<i<<"] = "<<PR[i]<<std::endl;
-    //for (int i=0; i < 12; i++) std::cout<<"F["<<i<<"] = "<<F[i]<<std::endl;
-    ERR = sqrt(F[0]*F[0] + F[1]*F[1] + F[2]*F[2] + F[3]*F[3] + F[4]*F[4] + F[5]*F[5] + F[6]*F[6] + F[7]*F[7] + F[8]*F[8] + F[9]*F[9] + F[10]*F[10] + F[11]*F[11]);
-    //std::cout << "ERR = " << ERR << std::endl;
-
-    if (ERR < 0.00000015) //0.00000015
-    {
-      for(int i=0; i < 12; i++)	IK_th[i] = th[i];
-      std::cout << "iter = " << iter << std::endl;
-      break;
-    }
-    else if(iter == 99)
-    {
-      for(int i=0; i < 12; i++)	IK_th[i] = Init_th[i];
-      std::cout << "iter = 99" << std::endl;
-      break;
-    }
-    
-    // Jacobian Cacluation using perturbation //
-    for(int i=0; i<12; i++) old_PR[i] = PR[i];
-
-    for(int i=0; i<12; i++)
-    {
-      for(int j=0; j<12; j++) New_Q4J[j] = old_Q[j];  // Reset
-            
-      New_Q4J[i] = old_Q[i] + del_Q; // Perturb
-      //std::cout << "New_Q4J[" <<i<<"] = " <<New_Q4J[i] << std::endl;
-      for(int j=0; j<6; j++) {New_Q4J_R[j] = New_Q4J[j]; New_Q4J_L[j] = New_Q4J[j+6];}
-      
-      // Forward Kinematics again //
-      BRP_RL_FK(New_Q4J_R, RL_PR);
-      BRP_LL_FK(New_Q4J_L, LL_PR);
-      
-      for(int j = 0; j<6;j++)
-      {
-        PR[j] = RL_PR[j]; PR[j+6] = LL_PR[j];
-      }
-      for(int j = 0; j<12; j++)
-      {
-        New_PR[j][i] = PR[j];
-      }
-    } // End of for(i=0; i<12; i++){
-
-    /*
-    std::cout << "New_PR:" << std::endl;
-    for (int i = 0; i < 12; i++)
-    {
-      for (int j = 0; j < 12; j++)
-      {
-        std::cout << "\t" << New_PR[i][j];
-      }
-    std::cout << std::endl; // 엔터
-    }			
-    */
-
-    for(int i = 0; i<12; i++)
-    {
-      for(int j = 0; j<12; j++)
-      {
-        J[i][j] = (New_PR[i][j] - old_PR[i])*10000; //del_Q = 0.0001;
-      }
-    }
-
-    /*
-    std::cout << "old_PR:" << std::endl;
-    for (int i = 0; i < 12; i++)
-    {
-      for (int j = 0; j < 12; j++)
-      {
-        std::cout << "\t" << old_PR[i];
-      }
-    std::cout << std::endl; // 엔터
-    }
-    */
-    //std::cout << "J:" << std::endl;
-
-    for (int i = 0; i < 12; i++)
-    {
-      for (int j = 0; j < 12; j++)
-      {
-        //std::cout << "\t" << J[i][j];
-        eigen_J(i,j)= J[i][j];
-      }
-    //std::cout << std::endl; // 엔터
-    }
-
-    inv_mat12(0,12,J,Inv_J);
-    //eigen_J_Inv = eigen_J.inverse();
-    /*
-    std::cout << "Inv_J:" << std::endl;
-    for (int i = 0; i < 12; i++)
-    {
-      for (int j = 0; j < 12; j++)
-      {	
-        std::cout << "\t" << Inv_J[i][j];
-        eigen_Inv_J(i,j) = Inv_J[i][j];
-      }
-    std::cout << std::endl; // 엔터
-    }
-    */		
-    //std::cout<<"eigen_J_Inv : "<<std::endl;
-    //std::cout<<eigen_J_Inv<<std::endl;
-    //std::cout<<"eigen_J*eigen_J_Inv : "<<std::endl;
-    //std::cout<<eigen_J*eigen_J_Inv<<std::endl;	
-    //std::cout<<"eigen_J*eigen_Inv_J : "<<std::endl;
-    //std::cout<<eigen_J*eigen_Inv_J<<std::endl;			
-    
-    for(int k=0; k < 12; k++)
-    {
-      sum = 0.;
-      for(int j=0; j < 12;j++)
-      {
-        sum = sum + Inv_J[k][j]*F[j];
-      }
-      th[k] = old_Q[k] + sum;
-      //std::cout<<"sum["<<k<<"] : "<<sum<<std::endl;
-      //std::cout << "th["<<k<<"] : " <<th[k]<<std::endl;
-    }
-    
-    if (th[3] < 0)
-    {  
-      th[3] = -th[3];
-    }
-    if (th[9] < 0)
-    {  
-      th[9] = -th[9];
-    }
-	} // End of for (iter = 0; iter <= 100; iter++)
-}
-
-void BRP_RL2PC_FK(double th[12], double PR[12])  // (2015_07_29)
-{
-	double  c1, c2, c3, c4, c5, c6, s1, s2, s3, s4, s5, s6, c34, s34, s345, c345, c12345, s1345, c1345, nx, ny, nz, ox, oy, oz, ax, ay, az;
-	c1 = cos(th[0]); c2 = cos(th[1]); c3 = cos(th[2]); c4 = cos(th[3]); c5 = cos(th[4]); c6 = cos(th[5]); 
-	s1 = sin(th[0]); s2 = sin(th[1]); s3 = sin(th[2]); s4 = sin(th[3]); s5 = sin(th[4]); s6 = sin(th[5]);
-	c34 = cos(th[2] + th[3]); s34 = sin(th[2] + th[3]); s345 = sin(th[2] + th[3] + th[4]); c345 = cos(th[2] + th[3] + th[4]);
-	c12345 = cos(th[0] + th[1] + th[2] + th[3] + th[4]); s1345 = sin(th[0] + th[2] +th[3] + th[4]); c1345 = cos(th[0] + th[2] +th[3] + th[4]);
-	
-	//double RL_T_80[4][4] = {{0.,},};
-	double RL_T_08[4][4] = {{0.5*(cos(th[0] - th[2] - th[3] - th[4]) + cos(th[0] + th[2] + th[3] + th[4]) - 2.*s1*s2*s345), -c2*c6*s1 + 0.25*(cos(th[0] - th[1] - th[2] - th[3] - th[4]) - cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] +th[4]) - c12345 - 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345)*s6, 0.25*c6*(cos(th[0] - th[1] - th[2] - th[3] - th[4]) - cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] + th[4]) - c12345 - 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345) + c2*s1*s6, -c3*((L3 + c4*(L4 + L6*c5*c6))*s1*s2 + c1*(L4 + L6*c5*c6)*s4) - c1*((L3 + c4*(L4 + L6*c5*c6))*s3 + L6*c34*c6*s5) + s1*(s2*((L4 + L6*c5*c6)*s3*s4 + L6*c6*s34*s5) - L6*c2*s6)},{0.25*(-cos(th[0] - th[1] - th[2] - th[3] - th[4]) + cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] + th[4]) - c12345 + 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345),s1*s345*s6 + c1*(c2*c6 - c345*s2*s6),0.5*c6*(cos(th[0] - th[2] - th[3] - th[4]) - c1345 - 2.*c1*c345*s2) - c1*c2*s6,-L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6)},{-c2*s345,c6*s2 + c2*c345*s6,c2*c345*c6 - s2*s6,-c2*(c3*(L3 + L4*c4) + L6*c345*c6 - L4*s3*s4) + L6*s2*s6},{0,0,0,1}};
-
-	inv_mat6(0, 4, RL_T_08, 0, RL_T_80, 0);
-	
-	// 8번 좌표계(=오른발 좌표계)에서 바라본 0번 좌표게(=골반 좌표계)의 위치 (pelvis center position w.r.t right foot fixed frame)
-	PR[0] = RL_T_80[0][3];
-	PR[1] = RL_T_80[1][3];
-	PR[2] = RL_T_80[2][3];
-	//std::cout<<PR[0]<<std::endl;
-	//std::cout<<PR[1]<<std::endl;
-	//std::cout<<PR[2]<<std::endl;
-	
-  // 오른발 좌표계에서 바라본 골반의 오일러 각도 계산, o0,x0,y0,z0  (Euler order : z -> y -> x)
-  nx = RL_T_80[0][0]; ny = RL_T_80[1][0]; nz = RL_T_80[2][0]; ox = RL_T_80[0][1]; oy = RL_T_80[1][1]; oz = RL_T_80[2][1];
-  ax = RL_T_80[0][2]; ay = RL_T_80[1][2]; az = RL_T_80[2][2];
-
-  PR[5] = atan2(ny,nx) ; // FI : Roll about z0 axis
-  PR[4] = atan2(-nz,cos(PR[5])*nx + sin(PR[5])*ny);  // theta : Pitch about y0 axis
-  PR[3] = atan2(sin(PR[5])*ax - cos(PR[5])*ay, -sin(PR[5])*ox + cos(PR[5])*oy) ; // csi : Yaw about x0 axis
-
-	double  c7, c8, c9, c10, c11, c12, s7, s8, s9, s10, s11, s12, c910, s910, s91011, c91011, c7891011, s791011, c791011;
-	c7 = cos(th[6]); c8 = cos(th[7]); c9 = cos(th[8]); c10 = cos(th[9]); c11 = cos(th[10]); c12 = cos(th[11]); 
-	s7 = sin(th[6]); s8 = sin(th[7]); s9 = sin(th[8]); s10 = sin(th[9]); s11 = sin(th[10]); s12 = sin(th[11]);
-	c910 = cos(th[8] + th[9]); s910 = sin(th[8] + th[9]); s91011 = sin(th[8] + th[9] + th[10]); c91011 = cos(th[8] + th[9] + th[10]);
-	c7891011 = cos(th[6] + th[7] + th[8] + th[9] + th[10]); s791011 = sin(th[6] + th[8] +th[9] + th[10]); c791011 = cos(th[6] + th[8] +th[9] + th[10]);
-
-	double LL_T_08[4][4] = {{0.5*(cos(th[6] - th[8] - th[9] - th[10]) + cos(th[6] + th[8] + th[9] + th[10]) - 2*s7*s8*s91011),-c8*c12*s7 + 0.25*(cos(th[6] - th[7] - th[8] - th[9] - th[10]) - cos(th[6] + th[7] - th[8] - th[9] - th[10]) + cos(th[6] - th[7] + th[8] + th[9] +th[10]) - c7891011 - 2.*sin(th[6] - th[8] - th[9] - th[10]) + 2.*s791011)*s12,0.25*c12*(cos(th[6] - th[7] - th[8] - th[9] - th[10]) - cos(th[6] + th[7] - th[8] - th[9] - th[10]) + cos(th[6] - th[7] + th[8] + th[9] + th[10]) - c7891011 - 2.*sin(th[6] - th[8] - th[9] - th[10]) + 2.*s791011) + c8*s7*s12,-c9*((L3 + c10*(L4 + L6*c11*c12))*s7*s8 + c7*(L4 + L6*c11*c12)*s10) - c7*((L3 + c10*(L4 + L6*c11*c12))*s9 + L6*c910*c12*s11) + s7*(s8*((L4 + L6*c11*c12)*s9*s10 + L6*c12*s910*s11) - L6*c8*s12)},{0.25*(-cos(th[6] - th[7] - th[8] - th[9] - th[10]) + cos(th[6] + th[7] - th[8] - th[9] - th[10]) + cos(th[6] - th[7] + th[8] + th[9] + th[10]) - c7891011 + 2.*sin(th[6] - th[8] - th[9] - th[10]) + 2.*s791011),s7*s91011*s12 + c7*(c8*c12 - c91011*s8*s12),0.5*c12*(cos(th[6] - th[8] - th[9] - th[10]) - c791011 - 2.*c7*c91011*s8) - c7*c8*s12,L0 - s7*((L3 + L4*c10)*s9 + L4*c9*s10 + L6*c12*s91011) + c7*(c9*(L3 + L4*c10)*s8 + L6*c91011*c12*s8 - L4*s8*s9*s10 + L6*c8*s12)},{-c8*s91011,c12*s8 + c8*c91011*s12,c8*c91011*c12 - s8*s12,-c8*(c9*(L3 + L4*c10) + L6*c91011*c12 - L4*s9*s10) + L6*s8*s12},{0,0,0,1}};
-	
-	MatrixXd LLT08 = MatrixXd::Zero(4,4);
-	MatrixXd RLT80 = MatrixXd::Zero(4,4);
-	
-  for(int i = 0; i< 4; i++)
-  {
-		for(int j =0; j < 4; j++)
-    {
-			LLT08(i,j) = LL_T_08[i][j];
-			RLT80(i,j) = RL_T_80[i][j];
-		}
-	}
-
-	//오른발 좌표계에서 바라본 왼 다리 관절들의 Homogeneous Transformation Matrix
-	LLT08 = RLT80*LLT08;
-
-	for(int i = 0; i< 4; i++)
-  {
-		for(int j =0; j < 4; j++)
-    {
-			LL_T_08[i][j] = LLT08(i,j);
-		}
-	}
-
-	// 오른발 좌표계에서 바라본 왼 발의 위치
-	PR[6] = LL_T_08[0][3];
-	PR[7] = LL_T_08[1][3];
-	PR[8] = LL_T_08[2][3];	
-
-	//오른발 좌표계에서 바라본 왼발의 오일러 각도 계산, o0,x0,y0,z0  (Euler order : z -> y -> x)
-  nx = LL_T_08[0][0]; ny = LL_T_08[1][0]; nz = LL_T_08[2][0]; ox = LL_T_08[0][1]; oy = LL_T_08[1][1]; oz = LL_T_08[2][1];
-  ax = LL_T_08[0][2]; ay = LL_T_08[1][2]; az = LL_T_08[2][2]; 	
-
-	PR[11] = atan2(ny,nx);  // FI : Roll about z0 axis
-	PR[10] = atan2(-nz,cos(PR[11])*nx + sin(PR[11])*ny);  // theta : Pitch about y0 axis
-	PR[9] = atan2(sin(PR[11])*ax - cos(PR[11])*ay, -sin(PR[11])*ox + cos(PR[11])*oy);  // csi : Yaw about x0 axis   	
-}
-
-void BRP_LL_FK(double th[6], double PR[6])  // (2015_07_29)
-{
-	double  c1, c2, c3, c4, c5, c6, s1, s2, s3, s4, s5, s6, c34, s34, s345, c345, c12345, s1345, c1345, nx, ny, nz, ox, oy, oz, ax, ay, az;
-	c1 = cos(th[0]); c2 = cos(th[1]); c3 = cos(th[2]); c4 = cos(th[3]); c5 = cos(th[4]); c6 = cos(th[5]); 
-	s1 = sin(th[0]); s2 = sin(th[1]); s3 = sin(th[2]); s4 = sin(th[3]); s5 = sin(th[4]); s6 = sin(th[5]);
-	c34 = cos(th[2] + th[3]); s34 = sin(th[2] + th[3]); s345 = sin(th[2] + th[3] + th[4]); c345 = cos(th[2] + th[3] + th[4]);
-	c12345 = cos(th[0] + th[1] + th[2] + th[3] + th[4]); s1345 = sin(th[0] + th[2] +th[3] + th[4]); c1345 = cos(th[0] + th[2] +th[3] + th[4]);
-
-	// Endeffector position
-	PR[0] = -c3*((L3 + c4*(L4 + L6*c5*c6))*s1*s2 + c1*(L4 + L6*c5*c6)*s4) - c1*((L3 + c4*(L4 + L6*c5*c6))*s3 + L6*c34*c6*s5) + s1*(s2*((L4 + L6*c5*c6)*s3*s4 + L6*c6*s34*s5) - L6*c2*s6);
-	PR[1] = L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6);
-	PR[2] = -c2*(c3*(L3 + L4*c4) + L6*c345*c6 - L4*s3*s4) + L6*s2*s6;
-
-	// Endeffector orientation
-	nx = 0.5*(cos(th[0] - th[2] - th[3] - th[4]) + cos(th[0] + th[2] + th[3] + th[4]) - 2.*s1*s2*s345);
-	ny = 0.25*(-cos(th[0] - th[1] - th[2] - th[3] - th[4]) + cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] + th[4]) - c12345 + 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345);
-	nz = -c2*s345;
-
-	//printf("nx = %f, ny = %f, nz = %f \n",nx,ny,nz);
-
-	ox = -c2*c6*s1 + 0.25*(cos(th[0] - th[1] - th[2] - th[3] - th[4]) - cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] +th[4]) - c12345 - 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345)*s6;
-	oy = s1*s345*s6 + c1*(c2*c6 - c345*s2*s6);
-	oz = c6*s2 + c2*c345*s6;
-
-	//printf("ox = %f, oy = %f, oz = %f \n",ox,oy,oz);
-
-	ax = 0.25*c6*(cos(th[0] - th[1] - th[2] - th[3] - th[4]) - cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] + th[4]) - c12345 - 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345) + c2*s1*s6;
-	ay = 0.5*c6*(cos(th[0] - th[2] - th[3] - th[4]) - c1345 - 2.*c1*c345*s2) - c1*c2*s6;
-	az = c2*c345*c6 - s2*s6;
-
-	//printf("ax = %f, ay = %f, az = %f \n",ax,ay,az);
-
-	PR[5] = atan2(ny,nx);  // FI : Roll about z0 axis
-	PR[4] = atan2(-nz,cos(PR[5])*nx + sin(PR[5])*ny);  // theta : Pitch about y0 axis
-	PR[3] = atan2(sin(PR[5])*ax - cos(PR[5])*ay, -sin(PR[5])*ox + cos(PR[5])*oy);  // csi : Yaw about x0 axis
-}
-
-void BRP_RL_FK(double th[6], double PR[6])  // (2015_07_29)
-{
-	double  c1, c2, c3, c4, c5, c6, s1, s2, s3, s4, s5, s6, c34, s34, s345, c345, c12345, s1345, c1345, nx, ny, nz, ox, oy, oz, ax, ay, az;
-
-	c1 = cos(th[0]); c2 = cos(th[1]); c3 = cos(th[2]); c4 = cos(th[3]); c5 = cos(th[4]); c6 = cos(th[5]); 
-	s1 = sin(th[0]); s2 = sin(th[1]); s3 = sin(th[2]); s4 = sin(th[3]); s5 = sin(th[4]); s6 = sin(th[5]);
-	c34 = cos(th[2] + th[3]); s34 = sin(th[2] + th[3]); s345 = sin(th[2] + th[3] + th[4]); c345 = cos(th[2] + th[3] + th[4]);
-	c12345 = cos(th[0] + th[1] + th[2] + th[3] + th[4]); s1345 = sin(th[0] + th[2] +th[3] + th[4]); c1345 = cos(th[0] + th[2] +th[3] + th[4]);
-
-	// Endeffector position
-	PR[0] = -c3*((L3 + c4*(L4 + L6*c5*c6))*s1*s2 + c1*(L4 + L6*c5*c6)*s4) - c1*((L3 + c4*(L4 + L6*c5*c6))*s3 + L6*c34*c6*s5) + s1*(s2*((L4 + L6*c5*c6)*s3*s4 + L6*c6*s34*s5) - L6*c2*s6);
-	PR[1] = -L0 - s1*((L3 + L4*c4)*s3 + L4*c3*s4 + L6*c6*s345) + c1*(c3*(L3 + L4*c4)*s2 + L6*c345*c6*s2 - L4*s2*s3*s4 + L6*c2*s6);
-	PR[2] = -c2*(c3*(L3 + L4*c4) + L6*c345*c6 - L4*s3*s4) + L6*s2*s6;
-
-	// Endeffector orientation
-	nx = 0.5*(cos(th[0] - th[2] - th[3] - th[4]) + cos(th[0] + th[2] + th[3] + th[4]) - 2*s1*s2*s345);
-	ny = 0.25*(-cos(th[0] - th[1] - th[2] - th[3] - th[4]) + cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] + th[4]) - c12345 + 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345);
-	nz = -c2*s345;
-
-	ox = -c2*c6*s1 + 0.25*(cos(th[0] - th[1] - th[2] - th[3] - th[4]) - cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] +th[4]) - c12345 - 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345)*s6;
-	oy = s1*s345*s6 + c1*(c2*c6 - c345*s2*s6);
-	oz = c6*s2 + c2*c345*s6;
-
-	ax = 0.25*c6*(cos(th[0] - th[1] - th[2] - th[3] - th[4]) - cos(th[0] + th[1] - th[2] - th[3] - th[4]) + cos(th[0] - th[1] + th[2] + th[3] + th[4]) - c12345 - 2.*sin(th[0] - th[2] - th[3] - th[4]) + 2.*s1345) + c2*s1*s6;
-	ay = 0.5*c6*(cos(th[0] - th[2] - th[3] - th[4]) - c1345 - 2.*c1*c345*s2) - c1*c2*s6;
-	az = c2*c345*c6 - s2*s6;
-
-	PR[5] = atan2(ny,nx);  // FI : Roll about z0 axis
-	PR[4] = atan2(-nz,cos(PR[5])*nx + sin(PR[5])*ny);  // theta : Pitch about y0 axis
-	PR[3] = atan2(sin(PR[5])*ax - cos(PR[5])*ay, -sin(PR[5])*ox + cos(PR[5])*oy);  // csi : Yaw about x0 axis
-}
-
-void BCHT(double Ref_Body_Roll_deg, double Ref_Body_Pitch_deg, double Ref_Body_Yaw_deg, double Ref_RL_BC[3], double Ref_RL_BC_TF[3], double O[3])
-{
-	double  c_roll, c_pitch, c_yaw, s_roll, s_pitch, s_yaw;
-
-	c_roll = cos(-Ref_Body_Roll_deg*deg2rad);
-	c_pitch = cos(-Ref_Body_Pitch_deg*deg2rad);
-	c_yaw = cos(-Ref_Body_Yaw_deg*deg2rad);
-	s_roll = sin(-Ref_Body_Roll_deg*deg2rad);
-	s_pitch = sin(-Ref_Body_Pitch_deg*deg2rad);
-	s_yaw = sin(-Ref_Body_Yaw_deg*deg2rad);
-
-	Ref_RL_BC_TF[0] = c_pitch*c_yaw*(Ref_RL_BC[0] - O[0]) + (-s_yaw*c_roll+s_roll*s_pitch*c_yaw)*(Ref_RL_BC[1] - O[1]) + (s_yaw*s_roll+s_pitch*c_yaw*c_roll)*(Ref_RL_BC[2] - O[2]);
-	Ref_RL_BC_TF[1] = s_yaw*c_pitch*(Ref_RL_BC[0] - O[0]) + (c_yaw*c_roll+s_roll*s_pitch*s_yaw)*(Ref_RL_BC[1] - O[1]) + (-c_yaw*s_roll+s_yaw*s_pitch*c_roll)*(Ref_RL_BC[2] - O[2]);
-	Ref_RL_BC_TF[2] = -s_pitch*(Ref_RL_BC[0] - O[0]) + (c_pitch*s_roll)*(Ref_RL_BC[1] - O[1]) + (c_pitch*c_roll)*(Ref_RL_BC[2] - O[2]);
-}
-
-void inv_mat6(int m, int n, double Mat4[][4], double Mat6[][6], double c_inv4[4][4], double c_inv[6][6])   // (2015_07_29)
-{
-	double big, size, abig, cbig, ratio; 
-	int i, k, j, ibig;
-	double jcob[6][6];
-	
-	for(i=0;i<n;i++)
-	{
-		for(j=0;j<n;j++)
-		{
-			if(n == 4)
-				jcob[i][j]=Mat4[i][j];
-			else if(n==6)
-				jcob[i][j]=Mat6[i][j];
-		}
-	}
-
-	if(n==6)
-  {
-    for(i=m;i<n;i++)
-    {
-      for(j=m;j<n;j++)
-        {
-        c_inv[i][j]=0.;
-        if(i==j) c_inv[i][i]=1.;
-        }
-    }
-
-    for (k=m; k<n; k++)
-    {
-      big=fabs(jcob[k][k]);
-      ibig=k;
-
-      for (i=k;i<n;i++)
-      {
-        size=fabs(jcob[i][k]);
-        if(size < big) goto next;
-        big=size;
-        ibig=i;
-        next:;			
-      }
-	
-      if(k==ibig) goto next2;
-      for(j=m;j<n;j++)
-			{
-			  if(j>=k)
-				{
-          abig=jcob[ibig][j];
-          jcob[ibig][j]=jcob[k][j];
-          jcob[k][j]=abig;
-        }
-        cbig=c_inv[ibig][j];
-        c_inv[ibig][j]=c_inv[k][j];
-        c_inv[k][j]=cbig;
- 			}
-
-      next2:;
-
-		  if(jcob[k][k] == 0.) {/*lcd_putch('S'); halt_e();return(1);*/}
-		  for(i=m;i<n;i++)
-			{
-        if(i==k) goto next3;
-        ratio=jcob[i][k]/jcob[k][k];
-        for (j=m;j <n;j++)
-				{
-          if(j>=k) jcob[i][j]=jcob[i][j] - ratio*jcob[k][j];
-          
-          c_inv[i][j]=c_inv[i][j] - ratio*c_inv[k][j];
-				}
-        next3:;
-			}
-		}
-
-  	for (k=m; k<n; k++)
-		{
-	  	for(j=m;j<n;j++)
-			{
-		  	c_inv[k][j]=c_inv[k][j]/jcob[k][k];
-			}
-		}
-	}
-	else if(n==4)
-  {
-    for(i=m;i<n;i++)
-    {
-      for(j=m;j<n;j++)
-      {
-        c_inv4[i][j]=0.;
-        if(i==j) c_inv4[i][i]=1.;
-      }
-    }
-
-    for (k=m; k<n; k++)
-    {
-      big=fabs(jcob[k][k]);
-      ibig=k;
-
-      for (i=k;i<n;i++)
-      {
-        size=fabs(jcob[i][k]);
-        if(size < big) goto next1_1;
-        big=size;
-        ibig=i;
-        next1_1:;			
-      }
-	
-		  if(k==ibig) goto next2_1;
-		  for(j=m;j<n;j++)
-			{
-			  if(j>=k)
-				{
-          abig=jcob[ibig][j];
-          jcob[ibig][j]=jcob[k][j];
-          jcob[k][j]=abig;
-				}
-        cbig=c_inv4[ibig][j];
-        c_inv4[ibig][j]=c_inv4[k][j];
-        c_inv4[k][j]=cbig;
- 			}
-		  
-      next2_1:;
-
-		  if(jcob[k][k] == 0.) {/*lcd_putch('S'); halt_e();return(1);*/}
-		  for(i=m;i<n;i++)
-			{
-			  if(i==k) goto next3_1;
-        ratio=jcob[i][k]/jcob[k][k];
-        for (j=m;j <n;j++)
-				{
-          if(j>=k) jcob[i][j]=jcob[i][j] - ratio*jcob[k][j];
-          c_inv4[i][j]=c_inv4[i][j] - ratio*c_inv4[k][j];
-				}
-        next3_1:;
-			}
-		}
-
-  	for (k=m; k<n; k++)
-		{
-		  for(j=m;j<n;j++)
-			{
-			  c_inv4[k][j]=c_inv4[k][j]/jcob[k][k];
-			}
-		}
-	}
-}
-
-void inv_mat12(int m, int n, double Mat12[][12], double c_inv[12][12])   // (2015_07_29)
-{
-	double big,size,abig, cbig, ratio; 
-	int i, k, j, ibig;
-	double jcob[12][12];
-	
-	for(i=0;i<n;i++)
-	{
-		for(j=0;j<n;j++)
-		{
-			if(n==12)
-				jcob[i][j]=Mat12[i][j];
-		}
-	}
-
-	if(n==12)
-  {
-    for(i=m;i<n;i++)
-    {
-      for(j=m;j<n;j++)
-        {
-        c_inv[i][j]=0.;
-        if(i==j) c_inv[i][i]=1.;
-        }
-    }
-
-  	for (k=m; k<n; k++)
-		{
-      big=fabs(jcob[k][k]);
-      ibig=k;
-
-	  	for (i=k;i<n;i++)
-			{
-        size=fabs(jcob[i][k]);
-        if(size < big) goto next;
-        big=size;
-        ibig=i;
-        next:;			
-			}
-	
-  		if(k==ibig) goto next2;
-  		
-      for(j=m;j<n;j++)
-			{
-		  	if(j>=k)
-				{
-          abig=jcob[ibig][j];
-          jcob[ibig][j]=jcob[k][j];
-          jcob[k][j]=abig;
-				}
-        cbig=c_inv[ibig][j];
-        c_inv[ibig][j]=c_inv[k][j];
-        c_inv[k][j]=cbig;
- 			}
-      next2:;
-
-	  	if(jcob[k][k] == 0.) {/*lcd_putch('S'); halt_e();return(1);*/}
-	  	for(i=m;i<n;i++)
-			{
-        if(i==k) goto next3;
-        ratio=jcob[i][k]/jcob[k][k];
-        for (j=m;j <n;j++)
-				{
-          if(j>=k) jcob[i][j]=jcob[i][j] - ratio*jcob[k][j];
-          c_inv[i][j]=c_inv[i][j] - ratio*c_inv[k][j];
-				}
-        next3:;
-			}
-		}
-
-  	for (k=m; k<n; k++)
-		{
-	  	for(j=m;j<n;j++)
-			{
-	  		c_inv[k][j]=c_inv[k][j]/jcob[k][k];
-			}
-		}
-	}
-}
-
-void BodyRotation(double Trans_Ref_PR[6], double Ref_PR[6], double o_fcp[3], double alpha, double beta, double gamma)
-{
-  //////////// Foot position & orientation change w.r.t pelvis center (Euler angle : Z(gamma) -> Y(beta) -> X(alpha)) //////////////
-  
-  double c_a = cos(alpha), c_b = cos(beta), c_g = cos(gamma), s_a = sin(alpha), s_b = sin(beta), s_g = sin(gamma);
-
-  
-  Trans_Ref_PR[0] = (Ref_PR[0]-o_fcp[0])*(c_b*c_g)+(Ref_PR[1]-o_fcp[1])*(-s_g*c_a + s_a*s_b*c_g)+(Ref_PR[2]-o_fcp[2])*(s_g*s_a + s_b*c_g*c_a); // 연산결과를 사용 행렬연산과정있으면 느려짐.
-  Trans_Ref_PR[1] = (Ref_PR[0]-o_fcp[0])*(s_g*c_b)+(Ref_PR[1]-o_fcp[1])*(c_g*c_a + s_a*s_b*s_g)+(Ref_PR[2]-o_fcp[2])*(-c_g*s_a + s_g*s_b*c_a);
-  Trans_Ref_PR[2] = (Ref_PR[0]-o_fcp[0])*(-s_b)+(Ref_PR[1]-o_fcp[1])*(c_b*s_a)+(Ref_PR[2]-o_fcp[2])*(c_b*c_a);
-  
-  Trans_Ref_PR[0] = Trans_Ref_PR[0] + o_fcp[0];
-  Trans_Ref_PR[1] = Trans_Ref_PR[1] + o_fcp[1];
-  Trans_Ref_PR[2] = Trans_Ref_PR[2] + o_fcp[2];
-  
-  Trans_Ref_PR[3] = Ref_PR[3] + alpha;
-  Trans_Ref_PR[4] = Ref_PR[4] + beta;
-  Trans_Ref_PR[5] = Ref_PR[5] + gamma;
 }
 
 double LPF_1st(double in, double* preOut, double freq_cut, double dt)
@@ -1816,34 +898,28 @@ res = alpha * in + (1- alpha) * *preOut;
 return res;
 }
 
-void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
+void gazebo::SUBO3_plugin::Calc_Feedback_Pos(A_RBDL &rbdl)
 {
   Math::Vector3d Foot_Pos;
   Math::Matrix3d R, R_Tmp;
   VectorNd QDot;
   MatrixNd L_Jacobian8, L_Jacobian, L_Jacobian_tmp, L_Bmatrix;
-  MatrixNd R_Jacobian8, R_Jacobian, R_Jacobian_tmp, R_Bmatrix;
 
   QDot = VectorNd::Zero(6);
 
-  L_Jacobian8 = MatrixNd::Zero(L_rbdl_model->dof_count,L_rbdl_model->dof_count);
+  L_Jacobian8 = MatrixNd::Zero(rbdl.rbdl_model->dof_count,rbdl.rbdl_model->dof_count);
   L_Jacobian = MatrixNd::Zero(6,6);
   L_Jacobian_tmp = MatrixNd::Zero(6,6);
   L_Bmatrix = MatrixNd::Zero(6,6);
-
-  R_Jacobian8 = MatrixNd::Zero(R_rbdl_model->dof_count,R_rbdl_model->dof_count);
-  R_Jacobian = MatrixNd::Zero(6,6);
-  R_Jacobian_tmp = MatrixNd::Zero(6,6);
-  R_Bmatrix = MatrixNd::Zero(6,6);
   
   double pi = 0, theta = 0, psi = 0;
 
   //*********************Left Leg**********************//
   // Get the End Effector's Aixs
-  Foot_Pos = CalcBodyToBaseCoordinates(*L_rbdl_model, L_Q, L_body_FOOT_id, Math::Vector3d(0, 0, 0), true);
+  Foot_Pos = CalcBodyToBaseCoordinates(*rbdl.rbdl_model, rbdl.Q, rbdl.body_FOOT_id, Math::Vector3d(0, 0, 0), true);
   
   // Get the End Effector's Rotation Matrix
-  R_Tmp = CalcBodyWorldOrientation(*L_rbdl_model, L_Q, L_body_FOOT_id, true);
+  R_Tmp = CalcBodyWorldOrientation(*rbdl.rbdl_model, rbdl.Q, rbdl.body_FOOT_id, true);
   R = R_Tmp.transpose();
 
   // Get the Euler Angle - pi, theta, psi
@@ -1852,7 +928,7 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
 
   // Get the Jacobian
-  CalcPointJacobian6D(*L_rbdl_model, L_Q, L_body_FOOT_id, Math::Vector3d(0, 0, 0), L_Jacobian8, true);
+  CalcPointJacobian6D(*rbdl.rbdl_model, rbdl.Q, rbdl.body_FOOT_id, Math::Vector3d(0, 0, 0), L_Jacobian8, true);
   
   // Get the Jacobian for 6 by 6
   for(int i = 0; i < 6; i++)
@@ -1878,35 +954,96 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
 
   // Calculate the Analytical Jacobian & Inverse of Analytical Jacobian
   L_Bmatrix << 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, cos(pi)/cos(theta), sin(pi)/cos(theta), 0, 0, 0, 0, -sin(pi), cos(pi), 0, 0, 0, 0, cos(pi)*tan(theta), sin(pi)*tan(theta), 1;
-  L_A_Jacobian = L_Bmatrix*L_Jacobian;
-  Inv_L_A_Jacobian = L_A_Jacobian.inverse();
+  rbdl.A_Jacobian = L_Bmatrix*L_Jacobian;
+  rbdl.Inv_A_Jacobian = rbdl.A_Jacobian.inverse();
 
   // Calculate the Jacobian dot
   for(int i = 0; i < 6; i++)
   {
     for(int j = 0 ; j< 6; j++)
     {
-      L_A_Jacobian_dot(i,j) = (L_A_Jacobian(i,j) - L_prev_A_Jacobian(i,j)) / dt;
-      L_prev_A_Jacobian(i,j) = L_A_Jacobian(i,j);
+      rbdl.A_Jacobian_dot(i,j) = (rbdl.A_Jacobian(i,j) - rbdl.prev_A_Jacobian(i,j)) / dt;
+      rbdl.prev_A_Jacobian(i,j) = rbdl.A_Jacobian(i,j);
     }
-    QDot(i) = L_QDot(i+3);
+    QDot(i) = rbdl.QDot(i+3);
   }
 
   // Current Pos & Pos_dot
-  L_Foot_Pos(0) = Foot_Pos(0);
-  L_Foot_Pos(1) = Foot_Pos(1);
-  L_Foot_Pos(2) = Foot_Pos(2);
-  L_Foot_Pos(3) = psi;
-  L_Foot_Pos(4) = theta;
-  L_Foot_Pos(5) = pi;
-  L_Foot_Pos_dot = L_A_Jacobian*QDot;
+  rbdl.Foot_Pos(0) = Foot_Pos(0);
+  rbdl.Foot_Pos(1) = Foot_Pos(1);
+  rbdl.Foot_Pos(2) = Foot_Pos(2);
+  rbdl.Foot_Pos(3) = psi;
+  rbdl.Foot_Pos(4) = theta;
+  rbdl.Foot_Pos(5) = pi;
+  rbdl.Foot_Pos_dot = rbdl.A_Jacobian*QDot;
+}
 
-  //*********************Right Leg**********************//
+void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
+{
+  VectorNd QDot;
+  QDot = VectorNd::Zero(6);
+
+  if(start_flag == 0)
+  {
+    rbdl.Kp << 10000, 10000, 60000, 10000, 60000, 10000;
+    rbdl.Kv << 50, 50, 100, 50, 100, 50;
+  }
+
+  //*********************Left Leg**********************//
+  VectorNd X_CTC;
+  X_CTC = VectorNd::Zero(6);
+
+  VectorNd q_CTC;
+  q_CTC = VectorNd::Zero(6);
+
+  VectorNd NE_Tau;
+  NE_Tau = VectorNd::Zero(6);
+
+  MatrixNd I_Matrix_tmp, I_Matrix;
+  I_Matrix = MatrixNd::Zero(6,6);
+  I_Matrix_tmp = MatrixNd::Zero(9,9);
+
+  for(int i = 0; i < 6; i++)
+  {
+    X_CTC(i) = rbdl.Des_XDDot(i) + rbdl.Kp(i) * (rbdl.Des_X(i) - rbdl.Foot_Pos(i)) + rbdl.Kv(i) * (rbdl.Des_XDot(i) - rbdl.Foot_Pos_dot(i));
+    QDot(i) = rbdl.QDot(i+3);
+  }
+
+  q_CTC = rbdl.Inv_A_Jacobian * (X_CTC - rbdl.A_Jacobian_dot*QDot);
+
+  NonlinearEffects(*rbdl.rbdl_model, rbdl.Q, rbdl.QDot, rbdl.Tau, NULL);
+  CompositeRigidBodyAlgorithm(*rbdl.rbdl_model, rbdl.Q, I_Matrix_tmp, true);
+
+  for(int i = 0; i < 6; i++)
+  {
+    NE_Tau(i) = rbdl.Tau(i+3);
+    for(int j = 0; j < 6; j++)
+    {
+      I_Matrix(i,j) = I_Matrix_tmp(i+3,j+3);
+    }
+  }
+
+  rbdl.torque_CTC = I_Matrix * q_CTC + NE_Tau;
+}
+
+void gazebo::SUBO3_plugin::Calc_Feedback_Pos(G_RBDL &rbdl)
+{
+  Math::Vector3d Body_Pos;
+  Math::Matrix3d R, R_Tmp;
+  MatrixNd L_Jacobian, L_Jacobian_tmp, L_Bmatrix;
+
+  L_Jacobian = MatrixNd::Zero(6,6);
+  L_Jacobian_tmp = MatrixNd::Zero(6,6);
+  L_Bmatrix = MatrixNd::Zero(6,6);
+  
+  double pi = 0, theta = 0, psi = 0;
+
+  //*********************Left Leg**********************//
   // Get the End Effector's Aixs
-  Foot_Pos = CalcBodyToBaseCoordinates(*R_rbdl_model, R_Q, R_body_FOOT_id, Math::Vector3d(0, 0, 0), true);
+  Body_Pos = CalcBodyToBaseCoordinates(*rbdl.rbdl_model, rbdl.Q, rbdl.body_id, Math::Vector3d(0, 0, 0), true);
   
   // Get the End Effector's Rotation Matrix
-  R_Tmp = CalcBodyWorldOrientation(*R_rbdl_model, R_Q, R_body_FOOT_id, true);
+  R_Tmp = CalcBodyWorldOrientation(*rbdl.rbdl_model, rbdl.Q, rbdl.body_id, true);
   R = R_Tmp.transpose();
 
   // Get the Euler Angle - pi, theta, psi
@@ -1915,140 +1052,80 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos()
   psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
 
   // Get the Jacobian
-  CalcPointJacobian6D(*R_rbdl_model, R_Q, R_body_FOOT_id, Math::Vector3d(0, 0, 0), R_Jacobian8, true);
-  
-  // Get the Jacobian for 6 by 6
-  for(int i = 0; i < 6; i++)
-  {
-    for(int j = 0; j < 6; j++)
-    {
-      R_Jacobian_tmp(i, j) = R_Jacobian8(i, j+3);
-    }
-  }
-  
+  CalcPointJacobian6D(*rbdl.rbdl_model, rbdl.Q, rbdl.body_id, Math::Vector3d(0, 0, 0), L_Jacobian_tmp, true);
+
   // Chage the Row
   for(int j = 0; j < 6; j++)
   {
     for(int i = 0; i < 3; i++)
     {
-      R_Jacobian(i,j) = R_Jacobian_tmp(i+3,j);  // linear
+      L_Jacobian(i,j) = L_Jacobian_tmp(i+3,j);  // linear
     }
     for(int i = 3; i < 6; i++)
     {
-      R_Jacobian(i,j) = R_Jacobian_tmp(i-3,j);  // angular
+      L_Jacobian(i,j) = L_Jacobian_tmp(i-3,j);  // angular
     }
   }
 
   // Calculate the Analytical Jacobian & Inverse of Analytical Jacobian
-  R_Bmatrix << 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, cos(pi)/cos(theta), sin(pi)/cos(theta), 0, 0, 0, 0, -sin(pi), cos(pi), 0, 0, 0, 0, cos(pi)*tan(theta), sin(pi)*tan(theta), 1;
-  R_A_Jacobian = R_Bmatrix*R_Jacobian;
-  Inv_R_A_Jacobian = R_A_Jacobian.inverse();
+  L_Bmatrix << 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, cos(pi)/cos(theta), sin(pi)/cos(theta), 0, 0, 0, 0, -sin(pi), cos(pi), 0, 0, 0, 0, cos(pi)*tan(theta), sin(pi)*tan(theta), 1;
+  rbdl.A_Jacobian = L_Bmatrix*L_Jacobian;
+  rbdl.Inv_A_Jacobian = rbdl.A_Jacobian.inverse();
 
   // Calculate the Jacobian dot
   for(int i = 0; i < 6; i++)
   {
     for(int j = 0 ; j< 6; j++)
     {
-      R_A_Jacobian_dot(i,j) = (R_A_Jacobian(i,j) - R_prev_A_Jacobian(i,j)) / dt;
-      R_prev_A_Jacobian(i,j) = R_A_Jacobian(i,j);
+      rbdl.A_Jacobian_dot(i,j) = (rbdl.A_Jacobian(i,j) - rbdl.prev_A_Jacobian(i,j)) / dt;
+      rbdl.prev_A_Jacobian(i,j) = rbdl.A_Jacobian(i,j);
     }
-    QDot(i) = R_QDot(i+3);
   }
 
   // Current Pos & Pos_dot
-  R_Foot_Pos(0) = Foot_Pos(0);
-  R_Foot_Pos(1) = Foot_Pos(1);
-  R_Foot_Pos(2) = Foot_Pos(2);
-  R_Foot_Pos(3) = psi;
-  R_Foot_Pos(4) = theta;
-  R_Foot_Pos(5) = pi;
-  R_Foot_Pos_dot = R_A_Jacobian*QDot;
+  rbdl.Foot_Pos(0) = Body_Pos(0);
+  rbdl.Foot_Pos(1) = Body_Pos(1);
+  rbdl.Foot_Pos(2) = Body_Pos(2);
+  rbdl.Foot_Pos(3) = psi;
+  rbdl.Foot_Pos(4) = theta;
+  rbdl.Foot_Pos(5) = pi;
+  rbdl.Foot_Pos_dot = rbdl.A_Jacobian*rbdl.QDot;
 }
 
-void gazebo::SUBO3_plugin::Calc_CTC_Torque()
+void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 {
-  VectorNd QDot;
-  QDot = VectorNd::Zero(6);
-
   if(start_flag == 0)
   {
-    // Kp << 10000, 10000, 60000, 10000, 60000, 10000;
-    // Kv << 50, 50, 100, 50, 100, 50;
-    Kp << 50000, 50000, 300000, 50000, 300000, 50000;
-    Kv << 50, 50, 100, 50, 100, 50;
+    rbdl.Kp << 5000, 5000, 10000, 5000, 10000, 5000;
+    rbdl.Kv << 30, 30, 50, 30, 50, 30;
   }
 
   //*********************Left Leg**********************//
-  VectorNd L_X_CTC;
-  L_X_CTC = VectorNd::Zero(6);
+  VectorNd X_CTC, tmp;
+  X_CTC = VectorNd::Zero(6);
+  tmp = VectorNd::Zero(6);
 
-  VectorNd L_q_CTC;
-  L_q_CTC = VectorNd::Zero(6);
+  VectorNd q_CTC;
+  q_CTC = VectorNd::Zero(6);
 
-  VectorNd L_NE_Tau;
-  L_NE_Tau = VectorNd::Zero(6);
+  VectorNd NE_Tau;
+  NE_Tau = VectorNd::Zero(6);
 
-  MatrixNd L_I_Matrix_tmp, L_I_Matrix;
-  L_I_Matrix = MatrixNd::Zero(6,6);
-  L_I_Matrix_tmp = MatrixNd::Zero(9,9);
-
-  for(int i = 0; i < 6; i++)
-  {
-    L_X_CTC(i) = L_Des_XDDot(i) + Kp(i) * (L_Des_X(i) - L_Foot_Pos(i)) + Kv(i) * (L_Des_XDot(i) - L_Foot_Pos_dot(i));
-    QDot(i) = L_QDot(i+3);
-  }
-
-  L_q_CTC = Inv_L_A_Jacobian * (L_X_CTC - L_A_Jacobian_dot*QDot);
-
-  NonlinearEffects(*L_rbdl_model, L_Q, L_QDot, L_Tau, NULL);
-  CompositeRigidBodyAlgorithm(*L_rbdl_model, L_Q, L_I_Matrix_tmp, true);
+  MatrixNd I_Matrix_tmp, I_Matrix;
+  I_Matrix = MatrixNd::Zero(6,6);
 
   for(int i = 0; i < 6; i++)
   {
-    L_NE_Tau(i) = L_Tau(i+3);
-    for(int j = 0; j < 6; j++)
-    {
-      L_I_Matrix(i,j) = L_I_Matrix_tmp(i+3,j+3);
-    }
+    X_CTC(i) = rbdl.Des_XDDot(i) + rbdl.Kp(i) * (rbdl.Des_X(i) - rbdl.Foot_Pos(i)) + rbdl.Kv(i) * (rbdl.Des_XDot(i) - rbdl.Foot_Pos_dot(i));
   }
 
-  L_torque_CTC = L_I_Matrix * L_q_CTC + L_NE_Tau;
+  q_CTC = rbdl.Inv_A_Jacobian * (X_CTC - rbdl.A_Jacobian_dot*rbdl.QDot);
+  tmp = rbdl.A_Jacobian_dot*rbdl.QDot;
 
-  //*********************Right Leg**********************//
-  VectorNd R_X_CTC;
-  R_X_CTC = VectorNd::Zero(6);
+  NonlinearEffects(*rbdl.rbdl_model, rbdl.Q, rbdl.QDot, NE_Tau, NULL);
+  CompositeRigidBodyAlgorithm(*rbdl.rbdl_model, rbdl.Q, I_Matrix, true);
 
-  VectorNd R_q_CTC;
-  R_q_CTC = VectorNd::Zero(6);
-
-  VectorNd R_NE_Tau;
-  R_NE_Tau = VectorNd::Zero(6);
-
-  MatrixNd R_I_Matrix_tmp, R_I_Matrix;
-  R_I_Matrix = MatrixNd::Zero(6,6);
-  R_I_Matrix_tmp = MatrixNd::Zero(9,9);
-
-  for(int i = 0; i < 6; i++)
-  {
-    R_X_CTC(i) = R_Des_XDDot(i) + Kp(i) * (R_Des_X(i) - R_Foot_Pos(i)) + Kv(i) * (R_Des_XDot(i) - R_Foot_Pos_dot(i));
-    QDot(i) = R_QDot(i+3);
-  }
-
-  R_q_CTC = Inv_R_A_Jacobian * (R_X_CTC - R_A_Jacobian_dot*QDot);
-
-  NonlinearEffects(*R_rbdl_model, R_Q, R_QDot, R_Tau, NULL);
-  CompositeRigidBodyAlgorithm(*R_rbdl_model, R_Q, R_I_Matrix_tmp, true);
-
-  for(int i = 0; i < 6; i++)
-  {
-    R_NE_Tau(i) = R_Tau(i+3);
-    for(int j = 0; j < 6; j++)
-    {
-      R_I_Matrix(i,j) = R_I_Matrix_tmp(i+3,j+3);
-    }
-  }
-
-  R_torque_CTC = R_I_Matrix * R_q_CTC + R_NE_Tau;
+  rbdl.torque_CTC = I_Matrix * q_CTC + NE_Tau;
 }
 
 void gazebo::SUBO3_plugin::CalcBodyAngle()
@@ -2087,10 +1164,10 @@ void gazebo::SUBO3_plugin::CalcBodyAngle()
   R_rll << 1, 0, 0, 0, cos(body_EAngle(1)*deg2rad), sin(body_EAngle(1)*deg2rad), 0, -sin(body_EAngle(1)*deg2rad), cos(body_EAngle(1)*deg2rad);
   R_pit << cos(-body_EAngle(0)*deg2rad), 0, -sin(-body_EAngle(0)*deg2rad), 0, 1, 0, sin(-body_EAngle(0)*deg2rad), 0, cos(-body_EAngle(0)*deg2rad);
 
-  L_Q(0) = -body_EAngle(0)*deg2rad;
-  L_Q(1) = body_EAngle(1)*deg2rad;
-  R_Q(0) = -body_EAngle(0)*deg2rad;
-  R_Q(1) = body_EAngle(1)*deg2rad;
+  A_L.Q(0) = -body_EAngle(0)*deg2rad;
+  A_L.Q(1) = body_EAngle(1)*deg2rad;
+  A_R.Q(0) = -body_EAngle(0)*deg2rad;
+  A_R.Q(1) = body_EAngle(1)*deg2rad;
 }
 
 void gazebo::SUBO3_plugin::jointController()
@@ -2196,6 +1273,26 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
     cnt = 0;
     CONTROL_MODE = CTC_CONTROL_CONT_POS;
   }
+  else if (msg->data == 5) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = GROUND_GRAVITY_CONTROL;
+  }
+  else if (msg->data == 6) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = GROUND_CTC_CONTROL;
+  }
+  else if (msg->data == 7) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = GROUND_CTC_CONTROL_POS;
+  }
+  else if (msg->data == 8) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = GROUND_CTC_CONTROL_CONT_POS;
+  }
   else
   {
     cnt = 0;
@@ -2208,32 +1305,92 @@ void gazebo::SUBO3_plugin::msgCallback(const subo3_pkgs::CTCMsg::ConstPtr &msg)
   start_flag = msg->TF;
   if(start_flag == 1)
   {
-    New_L_Des_X(0) = msg->L_Des_X_x;New_L_Des_X(1) = msg->L_Des_X_y;New_L_Des_X(2) = msg->L_Des_X_z;
-    New_L_Des_X(3) = msg->L_Des_X_rll;New_L_Des_X(4) = msg->L_Des_X_pit;New_L_Des_X(5) = msg->L_Des_X_yaw;
-    New_L_Des_XDot(0) = msg->L_Des_XDot_x;New_L_Des_XDot(1) = msg->L_Des_XDot_y;New_L_Des_XDot(2) = msg->L_Des_XDot_z;
-    New_L_Des_XDot(3) = msg->L_Des_XDot_rll;New_L_Des_XDot(4) = msg->L_Des_XDot_pit;New_L_Des_XDot(5) = msg->L_Des_XDot_yaw;
-    New_L_Des_XDDot(0) = msg->L_Des_XDDot_x;New_L_Des_XDDot(1) = msg->L_Des_XDDot_y;New_L_Des_XDDot(2) = msg->L_Des_XDDot_z;
-    New_L_Des_XDDot(3) = msg->L_Des_XDDot_rll;New_L_Des_XDDot(4) = msg->L_Des_XDDot_pit;New_L_Des_XDDot(5) = msg->L_Des_XDDot_yaw;
+    A_L.New_Des_X(0) = msg->L_Des_X_x;A_L.New_Des_X(1) = msg->L_Des_X_y;A_L.New_Des_X(2) = msg->L_Des_X_z;
+    A_L.New_Des_X(3) = msg->L_Des_X_rll;A_L.New_Des_X(4) = msg->L_Des_X_pit;A_L.New_Des_X(5) = msg->L_Des_X_yaw;
+    A_L.New_Des_XDot(0) = msg->L_Des_XDot_x;A_L.New_Des_XDot(1) = msg->L_Des_XDot_y;A_L.New_Des_XDot(2) = msg->L_Des_XDot_z;
+    A_L.New_Des_XDot(3) = msg->L_Des_XDot_rll;A_L.New_Des_XDot(4) = msg->L_Des_XDot_pit;A_L.New_Des_XDot(5) = msg->L_Des_XDot_yaw;
+    A_L.New_Des_XDDot(0) = msg->L_Des_XDDot_x;A_L.New_Des_XDDot(1) = msg->L_Des_XDDot_y;A_L.New_Des_XDDot(2) = msg->L_Des_XDDot_z;
+    A_L.New_Des_XDDot(3) = msg->L_Des_XDDot_rll;A_L.New_Des_XDDot(4) = msg->L_Des_XDDot_pit;A_L.New_Des_XDDot(5) = msg->L_Des_XDDot_yaw;
 
-    New_R_Des_X(0) = msg->R_Des_X_x;New_R_Des_X(1) = msg->R_Des_X_y;New_R_Des_X(2) = msg->R_Des_X_z;
-    New_R_Des_X(3) = msg->R_Des_X_rll;New_R_Des_X(4) = msg->R_Des_X_pit;New_R_Des_X(5) = msg->R_Des_X_yaw;
-    New_R_Des_XDot(0) = msg->R_Des_XDot_x;New_R_Des_XDot(1) = msg->R_Des_XDot_y;New_R_Des_XDot(2) = msg->R_Des_XDot_z;
-    New_R_Des_XDot(3) = msg->R_Des_XDot_rll;New_R_Des_XDot(4) = msg->R_Des_XDot_pit;New_R_Des_XDot(5) = msg->R_Des_XDot_yaw;
-    New_R_Des_XDDot(0) = msg->R_Des_XDDot_x;New_R_Des_XDDot(1) = msg->R_Des_XDDot_y;New_R_Des_XDDot(2) = msg->R_Des_XDDot_z;
-    New_R_Des_XDDot(3) = msg->R_Des_XDDot_rll;New_R_Des_XDDot(4) = msg->R_Des_XDDot_pit;New_R_Des_XDDot(5) = msg->R_Des_XDDot_yaw;
+    A_R.New_Des_X(0) = msg->R_Des_X_x;A_R.New_Des_X(1) = msg->R_Des_X_y;A_R.New_Des_X(2) = msg->R_Des_X_z;
+    A_R.New_Des_X(3) = msg->R_Des_X_rll;A_R.New_Des_X(4) = msg->R_Des_X_pit;A_R.New_Des_X(5) = msg->R_Des_X_yaw;
+    A_R.New_Des_XDot(0) = msg->R_Des_XDot_x;A_R.New_Des_XDot(1) = msg->R_Des_XDot_y;A_R.New_Des_XDot(2) = msg->R_Des_XDot_z;
+    A_R.New_Des_XDot(3) = msg->R_Des_XDot_rll;A_R.New_Des_XDot(4) = msg->R_Des_XDot_pit;A_R.New_Des_XDot(5) = msg->R_Des_XDot_yaw;
+    A_R.New_Des_XDDot(0) = msg->R_Des_XDDot_x;A_R.New_Des_XDDot(1) = msg->R_Des_XDDot_y;A_R.New_Des_XDDot(2) = msg->R_Des_XDDot_z;
+    A_R.New_Des_XDDot(3) = msg->R_Des_XDDot_rll;A_R.New_Des_XDDot(4) = msg->R_Des_XDDot_pit;A_R.New_Des_XDDot(5) = msg->R_Des_XDDot_yaw;
 
-    Kp(0) = msg->Kp0;
-    Kp(1) = msg->Kp1;
-    Kp(2) = msg->Kp2;
-    Kp(3) = msg->Kp3;
-    Kp(4) = msg->Kp4;
-    Kp(5) = msg->Kp5;
-    Kv(0) = msg->Kv0;
-    Kv(1) = msg->Kv1;
-    Kv(2) = msg->Kv2;
-    Kv(3) = msg->Kv3;
-    Kv(4) = msg->Kv4;
-    Kv(5) = msg->Kv5;
+    A_L.Kp(0) = msg->Kp0;
+    A_L.Kp(1) = msg->Kp1;
+    A_L.Kp(2) = msg->Kp2;
+    A_L.Kp(3) = msg->Kp3;
+    A_L.Kp(4) = msg->Kp4;
+    A_L.Kp(5) = msg->Kp5;
+    A_L.Kv(0) = msg->Kv0;
+    A_L.Kv(1) = msg->Kv1;
+    A_L.Kv(2) = msg->Kv2;
+    A_L.Kv(3) = msg->Kv3;
+    A_L.Kv(4) = msg->Kv4;
+    A_L.Kv(5) = msg->Kv5;
+
+    A_R.Kp(0) = msg->Kp0;
+    A_R.Kp(1) = msg->Kp1;
+    A_R.Kp(2) = msg->Kp2;
+    A_R.Kp(3) = msg->Kp3;
+    A_R.Kp(4) = msg->Kp4;
+    A_R.Kp(5) = msg->Kp5;
+    A_R.Kv(0) = msg->Kv0;
+    A_R.Kv(1) = msg->Kv1;
+    A_R.Kv(2) = msg->Kv2;
+    A_R.Kv(3) = msg->Kv3;
+    A_R.Kv(4) = msg->Kv4;
+    A_R.Kv(5) = msg->Kv5;
+  }
+}
+
+void gazebo::SUBO3_plugin::msgCallback2(const subo3_pkgs::CTCMsg::ConstPtr &msg)
+{
+  start_flag = msg->TF;
+  if(start_flag == 1)
+  {
+    G_L.New_Des_X(0) = msg->L_Des_X_x;G_L.New_Des_X(1) = msg->L_Des_X_y;G_L.New_Des_X(2) = msg->L_Des_X_z;
+    G_L.New_Des_X(3) = msg->L_Des_X_rll;G_L.New_Des_X(4) = msg->L_Des_X_pit;G_L.New_Des_X(5) = msg->L_Des_X_yaw;
+    G_L.New_Des_XDot(0) = msg->L_Des_XDot_x;G_L.New_Des_XDot(1) = msg->L_Des_XDot_y;G_L.New_Des_XDot(2) = msg->L_Des_XDot_z;
+    G_L.New_Des_XDot(3) = msg->L_Des_XDot_rll;G_L.New_Des_XDot(4) = msg->L_Des_XDot_pit;G_L.New_Des_XDot(5) = msg->L_Des_XDot_yaw;
+    G_L.New_Des_XDDot(0) = msg->L_Des_XDDot_x;G_L.New_Des_XDDot(1) = msg->L_Des_XDDot_y;G_L.New_Des_XDDot(2) = msg->L_Des_XDDot_z;
+    G_L.New_Des_XDDot(3) = msg->L_Des_XDDot_rll;G_L.New_Des_XDDot(4) = msg->L_Des_XDDot_pit;G_L.New_Des_XDDot(5) = msg->L_Des_XDDot_yaw;
+
+    G_R.New_Des_X(0) = msg->R_Des_X_x;G_R.New_Des_X(1) = msg->R_Des_X_y;G_R.New_Des_X(2) = msg->R_Des_X_z;
+    G_R.New_Des_X(3) = msg->R_Des_X_rll;G_R.New_Des_X(4) = msg->R_Des_X_pit;G_R.New_Des_X(5) = msg->R_Des_X_yaw;
+    G_R.New_Des_XDot(0) = msg->R_Des_XDot_x;G_R.New_Des_XDot(1) = msg->R_Des_XDot_y;G_R.New_Des_XDot(2) = msg->R_Des_XDot_z;
+    G_R.New_Des_XDot(3) = msg->R_Des_XDot_rll;G_R.New_Des_XDot(4) = msg->R_Des_XDot_pit;G_R.New_Des_XDot(5) = msg->R_Des_XDot_yaw;
+    G_R.New_Des_XDDot(0) = msg->R_Des_XDDot_x;G_R.New_Des_XDDot(1) = msg->R_Des_XDDot_y;G_R.New_Des_XDDot(2) = msg->R_Des_XDDot_z;
+    G_R.New_Des_XDDot(3) = msg->R_Des_XDDot_rll;G_R.New_Des_XDDot(4) = msg->R_Des_XDDot_pit;G_R.New_Des_XDDot(5) = msg->R_Des_XDDot_yaw;
+
+    G_L.Kp(0) = msg->Kp0;
+    G_L.Kp(1) = msg->Kp1;
+    G_L.Kp(2) = msg->Kp2;
+    G_L.Kp(3) = msg->Kp3;
+    G_L.Kp(4) = msg->Kp4;
+    G_L.Kp(5) = msg->Kp5;
+    G_L.Kv(0) = msg->Kv0;
+    G_L.Kv(1) = msg->Kv1;
+    G_L.Kv(2) = msg->Kv2;
+    G_L.Kv(3) = msg->Kv3;
+    G_L.Kv(4) = msg->Kv4;
+    G_L.Kv(5) = msg->Kv5;
+
+    G_R.Kp(0) = msg->Kp0;
+    G_R.Kp(1) = msg->Kp1;
+    G_R.Kp(2) = msg->Kp2;
+    G_R.Kp(3) = msg->Kp3;
+    G_R.Kp(4) = msg->Kp4;
+    G_R.Kp(5) = msg->Kp5;
+    G_R.Kv(0) = msg->Kv0;
+    G_R.Kv(1) = msg->Kv1;
+    G_R.Kv(2) = msg->Kv2;
+    G_R.Kv(3) = msg->Kv3;
+    G_R.Kv(4) = msg->Kv4;
+    G_R.Kv(5) = msg->Kv5;
   }
 }
 
@@ -2263,8 +1420,28 @@ void gazebo::SUBO3_plugin::PostureGeneration()
   }
   else if (CONTROL_MODE == CTC_CONTROL_CONT_POS) 
   {
-  test_cnt++;
+    test_cnt++;
     CTC_Control_Cont_Pos();
+  }
+  else if (CONTROL_MODE == GROUND_GRAVITY_CONTROL) 
+  {
+    test_cnt++;
+    GROUND_Gravity_Cont();
+  }
+  else if (CONTROL_MODE == GROUND_CTC_CONTROL) 
+  {
+    test_cnt++;
+    GROUND_CTC_Control();
+  }
+  else if (CONTROL_MODE == GROUND_CTC_CONTROL_POS) 
+  {
+	  test_cnt++;
+    GROUND_CTC_Control_Pos();
+  }
+  else if (CONTROL_MODE == GROUND_CTC_CONTROL_CONT_POS) 
+  {
+    test_cnt++;
+    GROUND_CTC_Control_Cont_Pos();
   }
 }
 
@@ -2307,30 +1484,56 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()
     old_joint[i+6].torque = joint[i+6].torque;
   }
 
+  // Air variable
   CalcBodyAngle();
-  L_Q(3) = actual_joint_pos[0];
-  L_Q(4) = actual_joint_pos[1];
-  L_Q(5) = actual_joint_pos[2];
-  L_Q(6) = actual_joint_pos[3];
-  L_Q(7) = actual_joint_pos[4];
-  L_Q(8) = actual_joint_pos[5];
+  A_L.Q(3) = actual_joint_pos[0];
+  A_L.Q(4) = actual_joint_pos[1];
+  A_L.Q(5) = actual_joint_pos[2];
+  A_L.Q(6) = actual_joint_pos[3];
+  A_L.Q(7) = actual_joint_pos[4];
+  A_L.Q(8) = actual_joint_pos[5];
   
-  R_Q(3) = actual_joint_pos[6];
-  R_Q(4) = actual_joint_pos[7];
-  R_Q(5) = actual_joint_pos[8];
-  R_Q(6) = actual_joint_pos[9];
-  R_Q(7) = actual_joint_pos[10];
-  R_Q(8) = actual_joint_pos[11];
+  A_R.Q(3) = actual_joint_pos[6];
+  A_R.Q(4) = actual_joint_pos[7];
+  A_R.Q(5) = actual_joint_pos[8];
+  A_R.Q(6) = actual_joint_pos[9];
+  A_R.Q(7) = actual_joint_pos[10];
+  A_R.Q(8) = actual_joint_pos[11];
 
-  L_QDot = (L_Q - L_prevQ) / dt;
-  L_QDDot = (L_QDot - L_prevQDot) / dt;
-  R_QDot = (R_Q - R_prevQ) / dt;
-  R_QDDot = (R_QDot - R_prevQDot) / dt;
+  A_L.QDot = (A_L.Q - A_L.prevQ) / dt;
+  A_L.QDDot = (A_L.QDot - A_L.prevQDot) / dt;
+  A_R.QDot = (A_R.Q - A_R.prevQ) / dt;
+  A_R.QDDot = (A_R.QDot - A_R.prevQDot) / dt;
 
-  L_prevQ = L_Q;
-  L_prevQDot = L_QDot;
-  R_prevQ = R_Q;
-  R_prevQDot = R_QDot;
+  A_L.prevQ = A_L.Q;
+  A_L.prevQDot = A_L.QDot;
+  A_R.prevQ = A_R.Q;
+  A_R.prevQDot = A_R.QDot;
+
+  // Ground variable
+  G_L.Q(0) = actual_joint_pos[5];
+  G_L.Q(1) = actual_joint_pos[4];
+  G_L.Q(2) = actual_joint_pos[3];
+  G_L.Q(3) = actual_joint_pos[2];
+  G_L.Q(4) = actual_joint_pos[1];
+  G_L.Q(5) = actual_joint_pos[0];
+
+  G_R.Q(0) = actual_joint_pos[11];
+  G_R.Q(1) = actual_joint_pos[10];
+  G_R.Q(2) = actual_joint_pos[9];
+  G_R.Q(3) = actual_joint_pos[8];
+  G_R.Q(4) = actual_joint_pos[7];
+  G_R.Q(5) = actual_joint_pos[6];
+
+  G_L.QDot = (G_L.Q - G_L.prevQ) / dt;
+  G_L.QDDot = (G_L.QDot - G_L.prevQDot) / dt;
+  G_R.QDot = (G_R.Q - G_R.prevQ) / dt;
+  G_R.QDDot = (G_R.QDot - G_R.prevQDot) / dt;
+
+  G_L.prevQ = G_L.Q;
+  G_L.prevQDot = G_L.QDot;
+  G_R.prevQ = G_R.Q;
+  G_R.prevQDot = G_R.QDot;
 }
 
 void gazebo::SUBO3_plugin::Gravity_Cont()
@@ -2340,38 +1543,37 @@ void gazebo::SUBO3_plugin::Gravity_Cont()
   cnt++;
 
   CalcBodyAngle();
-  L_Q(3) = actual_joint_pos[0];
-  L_Q(4) = actual_joint_pos[1];
-  L_Q(5) = actual_joint_pos[2];
-  L_Q(6) = actual_joint_pos[3];
-  L_Q(7) = actual_joint_pos[4];
-  L_Q(8) = actual_joint_pos[5];
+  A_L.Q(3) = actual_joint_pos[0];
+  A_L.Q(4) = actual_joint_pos[1];
+  A_L.Q(5) = actual_joint_pos[2];
+  A_L.Q(6) = actual_joint_pos[3];
+  A_L.Q(7) = actual_joint_pos[4];
+  A_L.Q(8) = actual_joint_pos[5];
+  
+  A_R.Q(3) = actual_joint_pos[6];
+  A_R.Q(4) = actual_joint_pos[7];
+  A_R.Q(5) = actual_joint_pos[8];
+  A_R.Q(6) = actual_joint_pos[9];
+  A_R.Q(7) = actual_joint_pos[10];
+  A_R.Q(8) = actual_joint_pos[11];
 
-  R_Q(3) = actual_joint_pos[6];
-  R_Q(4) = actual_joint_pos[7];
-  R_Q(5) = actual_joint_pos[8];
-  R_Q(6) = actual_joint_pos[9];
-  R_Q(7) = actual_joint_pos[10];
-  R_Q(8) = actual_joint_pos[11];
+  A_L.QDot = (A_L.Q - A_L.prevQ) / dt;
+  A_L.QDDot = (A_L.QDot - A_L.prevQDot) / dt;
+  A_R.QDot = (A_R.Q - A_R.prevQ) / dt;
+  A_R.QDDot = (A_R.QDot - A_R.prevQDot) / dt;
 
-  L_QDot = (L_Q - L_prevQ) / dt;
-  L_QDDot = (L_QDot - L_prevQDot) / dt;
-  R_QDot = (R_Q - R_prevQ) / dt;
-  R_QDDot = (R_QDot - R_prevQDot) / dt;
+  A_L.prevQ = A_L.Q;
+  A_L.prevQDot = A_L.QDot;
+  A_R.prevQ = A_R.Q;
+  A_R.prevQDot = A_R.QDot;
 
-  L_prevQ = L_Q;
-  L_prevQDot = L_QDot;
-  R_prevQ = R_Q;
-  R_prevQDot = R_QDot;
-
-  InverseDynamics(*L_rbdl_model, L_Q, VectorNd::Zero(9), VectorNd::Zero(9), L_Tau, NULL);
-  InverseDynamics(*R_rbdl_model, R_Q, VectorNd::Zero(9), VectorNd::Zero(9), R_Tau, NULL);
+  InverseDynamics(*A_L.rbdl_model, A_L.Q, VectorNd::Zero(9), VectorNd::Zero(9), A_L.Tau, NULL);
+  InverseDynamics(*A_R.rbdl_model, A_R.Q, VectorNd::Zero(9), VectorNd::Zero(9), A_R.Tau, NULL);
 
   for (int i = 0; i < 6; i++)
   {
-    joint[i].torque = L_Tau(i+3);
-    joint[i+6].torque = R_Tau(i+3);
-
+    joint[i].torque = A_L.Tau(i+3);
+    joint[i+6].torque = A_R.Tau(i+3);
   }
 }
 
@@ -2384,57 +1586,62 @@ void gazebo::SUBO3_plugin::CTC_Control()
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
-  CalcBodyAngle();
-  L_Q(3) = actual_joint_pos[0];
-  L_Q(4) = actual_joint_pos[1];
-  L_Q(5) = actual_joint_pos[2];
-  L_Q(6) = actual_joint_pos[3];
-  L_Q(7) = actual_joint_pos[4];
-  L_Q(8) = actual_joint_pos[5];
+  A_L.Q(0) = 0;
+  A_L.Q(1) = 0;
+  A_L.Q(3) = actual_joint_pos[0];
+  A_L.Q(4) = actual_joint_pos[1];
+  A_L.Q(5) = actual_joint_pos[2];
+  A_L.Q(6) = actual_joint_pos[3];
+  A_L.Q(7) = actual_joint_pos[4];
+  A_L.Q(8) = actual_joint_pos[5];
+  
+  A_R.Q(0) = 0;
+  A_R.Q(1) = 0;
+  A_R.Q(3) = actual_joint_pos[6];
+  A_R.Q(4) = actual_joint_pos[7];
+  A_R.Q(5) = actual_joint_pos[8];
+  A_R.Q(6) = actual_joint_pos[9];
+  A_R.Q(7) = actual_joint_pos[10];
+  A_R.Q(8) = actual_joint_pos[11];
 
-  R_Q(3) = actual_joint_pos[6];
-  R_Q(4) = actual_joint_pos[7];
-  R_Q(5) = actual_joint_pos[8];
-  R_Q(6) = actual_joint_pos[9];
-  R_Q(7) = actual_joint_pos[10];
-  R_Q(8) = actual_joint_pos[11];
+  A_L.QDot = (A_L.Q - A_L.prevQ) / dt;
+  A_L.QDDot = (A_L.QDot - A_L.prevQDot) / dt;
+  A_R.QDot = (A_R.Q - A_R.prevQ) / dt;
+  A_R.QDDot = (A_R.QDot - A_R.prevQDot) / dt;
 
-  L_QDot = (L_Q - L_prevQ) / dt;
-  L_QDDot = (L_QDot - L_prevQDot) / dt;
-  R_QDot = (R_Q - R_prevQ) / dt;
-  R_QDDot = (R_QDot - R_prevQDot) / dt;
-
-  L_prevQ = L_Q;
-  L_prevQDot = L_QDot;
-  R_prevQ = R_Q;
-  R_prevQDot = R_QDot;
+  A_L.prevQ = A_L.Q;
+  A_L.prevQDot = A_L.QDot;
+  A_R.prevQ = A_R.Q;
+  A_R.prevQDot = A_R.QDot;
 
   // Target Pos, Pos Dot, Pos DDot
-  L_Des_X(0) = 0;  L_Des_X(1) = 0.07;  L_Des_X(2) = -0.507;  L_Des_X(3) = 0;  L_Des_X(4) = 0;  L_Des_X(5) = 0;
-  L_Des_XDot(0) = 0;  L_Des_XDot(1) = 0;  L_Des_XDot(2) = 0;  L_Des_XDot(3) = 0;  L_Des_XDot(4) = 0;  L_Des_XDot(5) = 0;
-  L_Des_XDDot(0) = 0;  L_Des_XDDot(1) = 0;  L_Des_XDDot(2) = 0;  L_Des_XDDot(3) = 0;  L_Des_XDDot(4) = 0;  L_Des_XDDot(5) = 0;
+  A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.507;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+  A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
+  A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
 
-  R_Des_X(0) = 0;  R_Des_X(1) = -0.07;  R_Des_X(2) = -0.507;  R_Des_X(3) = 0;  R_Des_X(4) = 0;  R_Des_X(5) = 0;
-  R_Des_XDot(0) = 0;  R_Des_XDot(1) = 0;  R_Des_XDot(2) = 0;  R_Des_XDot(3) = 0;  R_Des_XDot(4) = 0;  R_Des_XDot(5) = 0;
-  R_Des_XDDot(0) = 0;  R_Des_XDDot(1) = 0;  R_Des_XDDot(2) = 0;  R_Des_XDDot(3) = 0;  R_Des_XDDot(4) = 0;  R_Des_XDDot(5) = 0;
+  A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.507;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+  A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
+  A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
 
-  Calc_Feedback_Pos();  // calculate the feedback
-  Calc_CTC_Torque();    // calculate the CTC torque
+  Calc_Feedback_Pos(A_L);  // calculate the feedback
+  Calc_Feedback_Pos(A_R);  // calculate the feedback
+  Calc_CTC_Torque(A_L);    // calculate the CTC torque
+  Calc_CTC_Torque(A_R);    // calculate the CTC torque
 
   if(cnt_time <= step_time)
   {
     for (int i = 0; i < 6; i++)
     {
-      joint[i].torque = old_joint[i].torque*old_trajectory + L_torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + R_torque_CTC(i)*new_trajectory;
+      joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
+      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
     }
   }
   else
   {
     for (int i = 0; i < 6; i++)
     {
-      joint[i].torque = L_torque_CTC(i);
-      joint[i+6].torque = R_torque_CTC(i);
+      joint[i].torque = A_L.torque_CTC(i);
+      joint[i+6].torque = A_R.torque_CTC(i);
       old_joint[i].torque = joint[i].torque;
       old_joint[i+6].torque = joint[i+6].torque;
     }
@@ -2450,44 +1657,47 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
-  // CalcBodyAngle();
-  L_Q(3) = actual_joint_pos[0];
-  L_Q(4) = actual_joint_pos[1];
-  L_Q(5) = actual_joint_pos[2];
-  L_Q(6) = actual_joint_pos[3];
-  L_Q(7) = actual_joint_pos[4];
-  L_Q(8) = actual_joint_pos[5];
+  A_L.Q(0) = 0;
+  A_L.Q(1) = 0;
+  A_L.Q(3) = actual_joint_pos[0];
+  A_L.Q(4) = actual_joint_pos[1];
+  A_L.Q(5) = actual_joint_pos[2];
+  A_L.Q(6) = actual_joint_pos[3];
+  A_L.Q(7) = actual_joint_pos[4];
+  A_L.Q(8) = actual_joint_pos[5];
+  
+  A_R.Q(0) = 0;
+  A_R.Q(1) = 0;
+  A_R.Q(3) = actual_joint_pos[6];
+  A_R.Q(4) = actual_joint_pos[7];
+  A_R.Q(5) = actual_joint_pos[8];
+  A_R.Q(6) = actual_joint_pos[9];
+  A_R.Q(7) = actual_joint_pos[10];
+  A_R.Q(8) = actual_joint_pos[11];
 
-  R_Q(3) = actual_joint_pos[6];
-  R_Q(4) = actual_joint_pos[7];
-  R_Q(5) = actual_joint_pos[8];
-  R_Q(6) = actual_joint_pos[9];
-  R_Q(7) = actual_joint_pos[10];
-  R_Q(8) = actual_joint_pos[11];
+  A_L.QDot = (A_L.Q - A_L.prevQ) / dt;
+  A_L.QDDot = (A_L.QDot - A_L.prevQDot) / dt;
+  A_R.QDot = (A_R.Q - A_R.prevQ) / dt;
+  A_R.QDDot = (A_R.QDot - A_R.prevQDot) / dt;
 
-  L_QDot = (L_Q - L_prevQ) / dt;
-  L_QDDot = (L_QDot - L_prevQDot) / dt;
-  R_QDot = (R_Q - R_prevQ) / dt;
-  R_QDDot = (R_QDot - R_prevQDot) / dt;
-
-  L_prevQ = L_Q;
-  L_prevQDot = L_QDot;
-  R_prevQ = R_Q;
-  R_prevQDot = R_QDot;
+  A_L.prevQ = A_L.Q;
+  A_L.prevQDot = A_L.QDot;
+  A_R.prevQ = A_R.Q;
+  A_R.prevQDot = A_R.QDot;
 
   // Target Pos, Pos Dot, Pos DDot
   if(start_flag == 0)
   {
-    L_Des_X(0) = 0;  L_Des_X(1) = 0.07;  L_Des_X(2) = -0.507;  L_Des_X(3) = 0;  L_Des_X(4) = 0;  L_Des_X(5) = 0;
-    L_Des_XDot(0) = 0;  L_Des_XDot(1) = 0;  L_Des_XDot(2) = 0;  L_Des_XDot(3) = 0;  L_Des_XDot(4) = 0;  L_Des_XDot(5) = 0;
-    L_Des_XDDot(0) = 0;  L_Des_XDDot(1) = 0;  L_Des_XDDot(2) = 0;  L_Des_XDDot(3) = 0;  L_Des_XDDot(4) = 0;  L_Des_XDDot(5) = 0;
+    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.507;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+    A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
+    A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
 
-    R_Des_X(0) = 0;  R_Des_X(1) = -0.07;  R_Des_X(2) = -0.507;  R_Des_X(3) = 0;  R_Des_X(4) = 0;  R_Des_X(5) = 0;
-    R_Des_XDot(0) = 0;  R_Des_XDot(1) = 0;  R_Des_XDot(2) = 0;  R_Des_XDot(3) = 0;  R_Des_XDot(4) = 0;  R_Des_XDot(5) = 0;
-    R_Des_XDDot(0) = 0;  R_Des_XDDot(1) = 0;  R_Des_XDDot(2) = 0;  R_Des_XDDot(3) = 0;  R_Des_XDDot(4) = 0;  R_Des_XDDot(5) = 0;
+    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.507;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
+    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
 
-    Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
-    Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+    A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+    A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
   }
   else if(start_flag == 1)
   {
@@ -2497,44 +1707,46 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
     if(chg_cnt_time <= chg_step_time)
     {
-      L_Des_X = Old_L_Des_X + (New_L_Des_X - Old_L_Des_X)*change_trajectory;
-      L_Des_XDot = Old_L_Des_XDot + (New_L_Des_XDot - Old_L_Des_XDot)*change_trajectory;
-      L_Des_XDDot = Old_L_Des_XDDot + (New_L_Des_XDDot - Old_L_Des_XDDot)*change_trajectory;
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
 
-      R_Des_X = Old_R_Des_X + (New_R_Des_X - Old_R_Des_X)*change_trajectory;
-      R_Des_XDot = Old_R_Des_XDot + (New_R_Des_XDot - Old_R_Des_XDot)*change_trajectory;
-      R_Des_XDDot = Old_R_Des_XDDot + (New_R_Des_XDDot - Old_R_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
     }
     else
     {
-      L_Des_X = New_L_Des_X; L_Des_XDot = New_L_Des_XDot; L_Des_XDDot = New_L_Des_XDDot;
-      R_Des_X = New_R_Des_X; R_Des_XDot = New_R_Des_XDot; R_Des_XDDot = New_R_Des_XDDot;
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
 
-      Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
-      Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
 
       start_flag = 2;
       chg_cnt = 0;
     }
   }
 
-  Calc_Feedback_Pos();  // calculate the feedback
-  Calc_CTC_Torque();    // calculate the CTC torque
+  Calc_Feedback_Pos(A_L);  // calculate the feedback
+  Calc_Feedback_Pos(A_R);  // calculate the feedback
+  Calc_CTC_Torque(A_L);    // calculate the CTC torque
+  Calc_CTC_Torque(A_R);    // calculate the CTC torque
 
   if(cnt_time <= step_time)
   {
     for (int i = 0; i < 6; i++)
     {
-      joint[i].torque = old_joint[i].torque*old_trajectory + L_torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + R_torque_CTC(i)*new_trajectory;
+      joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
+      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
     }
   }
   else
   {
     for (int i = 0; i < 6; i++)
     {
-      joint[i].torque = L_torque_CTC(i);
-      joint[i+6].torque = R_torque_CTC(i);
+      joint[i].torque = A_L.torque_CTC(i);
+      joint[i+6].torque = A_R.torque_CTC(i);
       old_joint[i].torque = joint[i].torque;
       old_joint[i+6].torque = joint[i+6].torque;
     }
@@ -2550,44 +1762,47 @@ void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos()
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
-  // CalcBodyAngle();
-  L_Q(3) = actual_joint_pos[0];
-  L_Q(4) = actual_joint_pos[1];
-  L_Q(5) = actual_joint_pos[2];
-  L_Q(6) = actual_joint_pos[3];
-  L_Q(7) = actual_joint_pos[4];
-  L_Q(8) = actual_joint_pos[5];
+  A_L.Q(0) = 0;
+  A_L.Q(1) = 0;
+  A_L.Q(3) = actual_joint_pos[0];
+  A_L.Q(4) = actual_joint_pos[1];
+  A_L.Q(5) = actual_joint_pos[2];
+  A_L.Q(6) = actual_joint_pos[3];
+  A_L.Q(7) = actual_joint_pos[4];
+  A_L.Q(8) = actual_joint_pos[5];
+  
+  A_R.Q(0) = 0;
+  A_R.Q(1) = 0;
+  A_R.Q(3) = actual_joint_pos[6];
+  A_R.Q(4) = actual_joint_pos[7];
+  A_R.Q(5) = actual_joint_pos[8];
+  A_R.Q(6) = actual_joint_pos[9];
+  A_R.Q(7) = actual_joint_pos[10];
+  A_R.Q(8) = actual_joint_pos[11];
 
-  R_Q(3) = actual_joint_pos[6];
-  R_Q(4) = actual_joint_pos[7];
-  R_Q(5) = actual_joint_pos[8];
-  R_Q(6) = actual_joint_pos[9];
-  R_Q(7) = actual_joint_pos[10];
-  R_Q(8) = actual_joint_pos[11];
+  A_L.QDot = (A_L.Q - A_L.prevQ) / dt;
+  A_L.QDDot = (A_L.QDot - A_L.prevQDot) / dt;
+  A_R.QDot = (A_R.Q - A_R.prevQ) / dt;
+  A_R.QDDot = (A_R.QDot - A_R.prevQDot) / dt;
 
-  L_QDot = (L_Q - L_prevQ) / dt;
-  L_QDDot = (L_QDot - L_prevQDot) / dt;
-  R_QDot = (R_Q - R_prevQ) / dt;
-  R_QDDot = (R_QDot - R_prevQDot) / dt;
-
-  L_prevQ = L_Q;
-  L_prevQDot = L_QDot;
-  R_prevQ = R_Q;
-  R_prevQDot = R_QDot;
+  A_L.prevQ = A_L.Q;
+  A_L.prevQDot = A_L.QDot;
+  A_R.prevQ = A_R.Q;
+  A_R.prevQDot = A_R.QDot;
 
   // Target Pos, Pos Dot, Pos DDot
   if(start_flag == 0)
   {
-    L_Des_X(0) = 0;  L_Des_X(1) = 0.07;  L_Des_X(2) = -0.507;  L_Des_X(3) = 0;  L_Des_X(4) = 0;  L_Des_X(5) = 0;
-    L_Des_XDot(0) = 0;  L_Des_XDot(1) = 0;  L_Des_XDot(2) = 0;  L_Des_XDot(3) = 0;  L_Des_XDot(4) = 0;  L_Des_XDot(5) = 0;
-    L_Des_XDDot(0) = 0;  L_Des_XDDot(1) = 0;  L_Des_XDDot(2) = 0;  L_Des_XDDot(3) = 0;  L_Des_XDDot(4) = 0;  L_Des_XDDot(5) = 0;
+    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.507;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+    A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
+    A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
 
-    R_Des_X(0) = 0;  R_Des_X(1) = -0.07;  R_Des_X(2) = -0.507;  R_Des_X(3) = 0;  R_Des_X(4) = 0;  R_Des_X(5) = 0;
-    R_Des_XDot(0) = 0;  R_Des_XDot(1) = 0;  R_Des_XDot(2) = 0;  R_Des_XDot(3) = 0;  R_Des_XDot(4) = 0;  R_Des_XDot(5) = 0;
-    R_Des_XDDot(0) = 0;  R_Des_XDDot(1) = 0;  R_Des_XDDot(2) = 0;  R_Des_XDDot(3) = 0;  R_Des_XDDot(4) = 0;  R_Des_XDDot(5) = 0;
+    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.507;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
+    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
 
-    Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
-    Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+    A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+    A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
   }
   else if(start_flag == 1)
   {
@@ -2596,30 +1811,30 @@ void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos()
     chg_cnt++;
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
     
-    New_L_Des_X << 0, 0.07, -0.4, 0, 0, 0;
-    New_L_Des_XDot << 0, 0, 0, 0, 0, 0;
-    New_L_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    New_R_Des_X << 0, -0.07, -0.55, 0, 0, 0;
-    New_R_Des_XDot << 0, 0, 0, 0, 0, 0;
-    New_R_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_X << 0, 0.07, -0.4, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << 0, -0.07, -0.55, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
 
     if(chg_cnt_time <= chg_step_time)
     {
-      L_Des_X = Old_L_Des_X + (New_L_Des_X - Old_L_Des_X)*change_trajectory;
-      L_Des_XDot = Old_L_Des_XDot + (New_L_Des_XDot - Old_L_Des_XDot)*change_trajectory;
-      L_Des_XDDot = Old_L_Des_XDDot + (New_L_Des_XDDot - Old_L_Des_XDDot)*change_trajectory;
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
 
-      R_Des_X = Old_R_Des_X + (New_R_Des_X - Old_R_Des_X)*change_trajectory;
-      R_Des_XDot = Old_R_Des_XDot + (New_R_Des_XDot - Old_R_Des_XDot)*change_trajectory;
-      R_Des_XDDot = Old_R_Des_XDDot + (New_R_Des_XDDot - Old_R_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
     }
     else
     {
-      L_Des_X = New_L_Des_X; L_Des_XDot = New_L_Des_XDot; L_Des_XDDot = New_L_Des_XDDot;
-      R_Des_X = New_R_Des_X; R_Des_XDot = New_R_Des_XDot; R_Des_XDDot = New_R_Des_XDDot;
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
 
-      Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
-      Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
 
       start_flag = 2;
       chg_cnt = 0;
@@ -2632,68 +1847,420 @@ void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos()
     chg_cnt++;
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
     
-    New_L_Des_X << 0, 0.07, -0.55, 0, 0, 0;
-    New_L_Des_XDot << 0, 0, 0, 0, 0, 0;
-    New_L_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    New_R_Des_X << 0, -0.07, -0.4, 0, 0, 0;
-    New_R_Des_XDot << 0, 0, 0, 0, 0, 0;
-    New_R_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_X << 0, 0.07, -0.55, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << 0, -0.07, -0.4, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
     
     if(chg_cnt_time <= chg_step_time)
     {
-      L_Des_X = Old_L_Des_X + (New_L_Des_X - Old_L_Des_X)*change_trajectory;
-      L_Des_XDot = Old_L_Des_XDot + (New_L_Des_XDot - Old_L_Des_XDot)*change_trajectory;
-      L_Des_XDDot = Old_L_Des_XDDot + (New_L_Des_XDDot - Old_L_Des_XDDot)*change_trajectory;
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
 
-      R_Des_X = Old_R_Des_X + (New_R_Des_X - Old_R_Des_X)*change_trajectory;
-      R_Des_XDot = Old_R_Des_XDot + (New_R_Des_XDot - Old_R_Des_XDot)*change_trajectory;
-      R_Des_XDDot = Old_R_Des_XDDot + (New_R_Des_XDDot - Old_R_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
     }
     else
     {
-      L_Des_X = New_L_Des_X; L_Des_XDot = New_L_Des_XDot; L_Des_XDDot = New_L_Des_XDDot;
-      R_Des_X = New_R_Des_X; R_Des_XDot = New_R_Des_XDot; R_Des_XDDot = New_R_Des_XDDot;
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
 
-      Old_L_Des_X = L_Des_X; Old_L_Des_XDot = L_Des_XDot; Old_L_Des_XDDot = L_Des_XDDot;
-      Old_R_Des_X = R_Des_X; Old_R_Des_XDot = R_Des_XDot; Old_R_Des_XDDot = R_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
 
       start_flag = 1;
       chg_cnt = 0;
     }
   }
 
-  Calc_Feedback_Pos();  // calculate the feedback
-  Calc_CTC_Torque();    // calculate the CTC torque
+  Calc_Feedback_Pos(A_L);  // calculate the feedback
+  Calc_Feedback_Pos(A_R);  // calculate the feedback
+  Calc_CTC_Torque(A_L);    // calculate the CTC torque
+  Calc_CTC_Torque(A_R);    // calculate the CTC torque
 
   if(cnt_time <= step_time)
   {
     for (int i = 0; i < 6; i++)
     {
-      joint[i].torque = old_joint[i].torque*old_trajectory + L_torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + R_torque_CTC(i)*new_trajectory;
+      joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
+      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
     }
   }
   else
   {
     for (int i = 0; i < 6; i++)
     {
-      joint[i].torque = L_torque_CTC(i);
-      joint[i+6].torque = R_torque_CTC(i);
+      joint[i].torque = A_L.torque_CTC(i);
+      joint[i+6].torque = A_R.torque_CTC(i);
       old_joint[i].torque = joint[i].torque;
       old_joint[i+6].torque = joint[i+6].torque;
     }
   }
 }
 
+void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()
+{
+  step_time = 1; //주기설정 (초) 변수
+  cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+
+  G_L.Q(0) = actual_joint_pos[5];
+  G_L.Q(1) = actual_joint_pos[4];
+  G_L.Q(2) = actual_joint_pos[3];
+  G_L.Q(3) = actual_joint_pos[2];
+  G_L.Q(4) = actual_joint_pos[1];
+  G_L.Q(5) = actual_joint_pos[0];
+
+  G_R.Q(0) = actual_joint_pos[11];
+  G_R.Q(1) = actual_joint_pos[10];
+  G_R.Q(2) = actual_joint_pos[9];
+  G_R.Q(3) = actual_joint_pos[8];
+  G_R.Q(4) = actual_joint_pos[7];
+  G_R.Q(5) = actual_joint_pos[6];
+
+  G_L.QDot = (G_L.Q - G_L.prevQ) / dt;
+  G_L.QDDot = (G_L.QDot - G_L.prevQDot) / dt;
+  G_R.QDot = (G_R.Q - G_R.prevQ) / dt;
+  G_R.QDDot = (G_R.QDot - G_R.prevQDot) / dt;
+
+  G_L.prevQ = G_L.Q;
+  G_L.prevQDot = G_L.QDot;
+  G_R.prevQ = G_R.Q;
+  G_R.prevQDot = G_R.QDot;
+
+  InverseDynamics(*G_L.rbdl_model, G_L.Q, VectorNd::Zero(6), VectorNd::Zero(6), G_L.Tau, NULL);
+  InverseDynamics(*G_R.rbdl_model, G_R.Q, VectorNd::Zero(6), VectorNd::Zero(6), G_R.Tau, NULL);
+
+  for (int i = 0; i < 6; i++)
+  {
+    joint[5-i].torque = G_L.Tau(i);
+    joint[11-i].torque = G_L.Tau(i);
+  }
+}
+
+void gazebo::SUBO3_plugin::GROUND_CTC_Control()
+{
+  step_time = 1; //주기설정 (초) 변수
+  cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+  
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  G_L.Q(0) = actual_joint_pos[5];
+  G_L.Q(1) = actual_joint_pos[4];
+  G_L.Q(2) = actual_joint_pos[3];
+  G_L.Q(3) = actual_joint_pos[2];
+  G_L.Q(4) = actual_joint_pos[1];
+  G_L.Q(5) = actual_joint_pos[0];
+
+  G_R.Q(0) = actual_joint_pos[11];
+  G_R.Q(1) = actual_joint_pos[10];
+  G_R.Q(2) = actual_joint_pos[9];
+  G_R.Q(3) = actual_joint_pos[8];
+  G_R.Q(4) = actual_joint_pos[7];
+  G_R.Q(5) = actual_joint_pos[6];
+
+  G_L.QDot = (G_L.Q - G_L.prevQ) / dt;
+  G_L.QDDot = (G_L.QDot - G_L.prevQDot) / dt;
+  G_R.QDot = (G_R.Q - G_R.prevQ) / dt;
+  G_R.QDDot = (G_R.QDot - G_R.prevQDot) / dt;
+
+  G_L.prevQ = G_L.Q;
+  G_L.prevQDot = G_L.QDot;
+  G_R.prevQ = G_R.Q;
+  G_R.prevQDot = G_R.QDot;
+
+  // Target Pos, Pos Dot, Pos DDot
+  G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.507;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+  G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
+  G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+
+  G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.507;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+  G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
+  G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+
+  Calc_Feedback_Pos(G_L);  // calculate the feedback
+  Calc_Feedback_Pos(G_R);  // calculate the feedback
+  Calc_CTC_Torque(G_L);    // calculate the CTC torque
+  Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+  if(cnt_time <= step_time)
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[5-i].torque = old_joint[5-i].torque*old_trajectory + G_L.torque_CTC(i)*new_trajectory;
+      joint[11-i].torque = old_joint[11-i].torque*old_trajectory + G_R.torque_CTC(i)*new_trajectory;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[5-i].torque = G_L.torque_CTC(i);
+      joint[11-i].torque = G_R.torque_CTC(i);
+
+      old_joint[5-i].torque = joint[5-i].torque;
+      old_joint[11-i].torque = joint[11-i].torque;
+    }
+  }
+}
+
+void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos()
+{
+  step_time = 1; //주기설정 (초) 변수
+  cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+  
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  G_L.Q(0) = actual_joint_pos[5];
+  G_L.Q(1) = actual_joint_pos[4];
+  G_L.Q(2) = actual_joint_pos[3];
+  G_L.Q(3) = actual_joint_pos[2];
+  G_L.Q(4) = actual_joint_pos[1];
+  G_L.Q(5) = actual_joint_pos[0];
+
+  G_R.Q(0) = actual_joint_pos[11];
+  G_R.Q(1) = actual_joint_pos[10];
+  G_R.Q(2) = actual_joint_pos[9];
+  G_R.Q(3) = actual_joint_pos[8];
+  G_R.Q(4) = actual_joint_pos[7];
+  G_R.Q(5) = actual_joint_pos[6];
+
+  G_L.QDot = (G_L.Q - G_L.prevQ) / dt;
+  G_L.QDDot = (G_L.QDot - G_L.prevQDot) / dt;
+  G_R.QDot = (G_R.Q - G_R.prevQ) / dt;
+  G_R.QDDot = (G_R.QDot - G_R.prevQDot) / dt;
+
+  G_L.prevQ = G_L.Q;
+  G_L.prevQDot = G_L.QDot;
+  G_R.prevQ = G_R.Q;
+  G_R.prevQDot = G_R.QDot;
+
+  // Target Pos, Pos Dot, Pos DDot
+  if(start_flag == 0)
+  {
+    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.507;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+    G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
+    G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+
+    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.507;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+    G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
+    G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+
+    G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+    G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+  }
+  else if(start_flag == 1)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    if(chg_cnt_time <= chg_step_time)
+    {
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+    }
+    else
+    {
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      start_flag = 2;
+      chg_cnt = 0;
+    }
+  }
+
+  Calc_Feedback_Pos(G_L);  // calculate the feedback
+  Calc_Feedback_Pos(G_R);  // calculate the feedback
+  Calc_CTC_Torque(G_L);    // calculate the CTC torque
+  Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+  if(cnt_time <= step_time)
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[5-i].torque = old_joint[5-i].torque*old_trajectory + G_L.torque_CTC(i)*new_trajectory;
+      joint[11-i].torque = old_joint[11-i].torque*old_trajectory + G_R.torque_CTC(i)*new_trajectory;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[5-i].torque = G_L.torque_CTC(i);
+      joint[11-i].torque = G_R.torque_CTC(i);
+
+      old_joint[5-i].torque = joint[5-i].torque;
+      old_joint[11-i].torque = joint[11-i].torque;
+    }
+  }
+}
+
+void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()
+{
+  step_time = 1; //주기설정 (초) 변수
+  cnt_time = cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+  
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  G_L.Q(0) = actual_joint_pos[5];
+  G_L.Q(1) = actual_joint_pos[4];
+  G_L.Q(2) = actual_joint_pos[3];
+  G_L.Q(3) = actual_joint_pos[2];
+  G_L.Q(4) = actual_joint_pos[1];
+  G_L.Q(5) = actual_joint_pos[0];
+
+  G_R.Q(0) = actual_joint_pos[11];
+  G_R.Q(1) = actual_joint_pos[10];
+  G_R.Q(2) = actual_joint_pos[9];
+  G_R.Q(3) = actual_joint_pos[8];
+  G_R.Q(4) = actual_joint_pos[7];
+  G_R.Q(5) = actual_joint_pos[6];
+
+  G_L.QDot = (G_L.Q - G_L.prevQ) / dt;
+  G_L.QDDot = (G_L.QDot - G_L.prevQDot) / dt;
+  G_R.QDot = (G_R.Q - G_R.prevQ) / dt;
+  G_R.QDDot = (G_R.QDot - G_R.prevQDot) / dt;
+
+  G_L.prevQ = G_L.Q;
+  G_L.prevQDot = G_L.QDot;
+  G_R.prevQ = G_R.Q;
+  G_R.prevQDot = G_R.QDot;
+
+  // Target Pos, Pos Dot, Pos DDot
+  if(start_flag == 0)
+  {
+    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.507;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+    G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
+    G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+
+    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.507;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+    G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
+    G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+
+    G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+    G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+  }
+  else if(start_flag == 1)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+
+    G_L.New_Des_X << 0, 0, 0.55, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << 0, 0, 0.55, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    if(chg_cnt_time <= chg_step_time)
+    {
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+    }
+    else
+    {
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      start_flag = 2;
+      chg_cnt = 0;
+    }
+  }
+  else if(start_flag == 2)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    
+    G_L.New_Des_X << 0, 0, 0.45, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << 0, 0, 0.45, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    
+    if(chg_cnt_time <= chg_step_time)
+    {
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+    }
+    else
+    {
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      start_flag = 1;
+      chg_cnt = 0;
+    }
+  }
+
+
+  Calc_Feedback_Pos(G_L);  // calculate the feedback
+  Calc_Feedback_Pos(G_R);  // calculate the feedback
+  Calc_CTC_Torque(G_L);    // calculate the CTC torque
+  Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+  if(cnt_time <= step_time)
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[5-i].torque = old_joint[5-i].torque*old_trajectory + G_L.torque_CTC(i)*new_trajectory;
+      joint[11-i].torque = old_joint[11-i].torque*old_trajectory + G_R.torque_CTC(i)*new_trajectory;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[5-i].torque = G_L.torque_CTC(i);
+      joint[11-i].torque = G_R.torque_CTC(i);
+
+      old_joint[5-i].torque = joint[5-i].torque;
+      old_joint[11-i].torque = joint[11-i].torque;
+    }
+  }
+}
+
 void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플로팅
 {
-  if (CONTROL_MODE == CTC_CONTROL) 
-  {
-    fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", L_Des_X(0),L_Des_X(1),L_Des_X(2),L_Des_X(3),L_Des_X(4),L_Des_X(5));
-    fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Foot_Pos(0),L_Foot_Pos(1),L_Foot_Pos(2),L_Foot_Pos(3),L_Foot_Pos(4),L_Foot_Pos(5));
-    fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", L_torque_CTC(0), L_torque_CTC(1), L_torque_CTC(2), L_torque_CTC(3), L_torque_CTC(4), L_torque_CTC(5));
-    fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", joint[0].torque, joint[1].torque, joint[2].torque, joint[3].torque, joint[4].torque, joint[5].torque);
-  }
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
