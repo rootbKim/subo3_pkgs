@@ -1,0 +1,6 @@
+clc; clear all; close all;
+
+Foot_Pos = readmatrix('tmpdata0.txt');
+Foot_Pos_dot = readmatrix('tmpdata1.txt');
+
+psi = Foot_Pos(410
