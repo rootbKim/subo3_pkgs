@@ -316,8 +316,8 @@ struct kissfft_impl
 
         // use optimized mode for even real
         fwd( dst, reinterpret_cast<const Complex*> (src), ncfft);
-        Complex dc = dst[0].real() +  dst[0].imag();
-        Complex nyquist = dst[0].real() -  dst[0].imag();
+        Complex dc(dst[0].real() +  dst[0].imag());
+        Complex nyquist(dst[0].real() -  dst[0].imag());
         int k;
         for ( k=1;k <= ncfft2 ; ++k ) {
           Complex fpk = dst[k];
@@ -416,5 +416,3 @@ struct kissfft_impl
 } // end namespace internal
 
 } // end namespace Eigen
-
-/* vim: set filetype=cpp et sw=2 ts=2 ai: */

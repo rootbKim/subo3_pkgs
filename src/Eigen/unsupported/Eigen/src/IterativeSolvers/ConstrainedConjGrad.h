@@ -31,7 +31,7 @@
 #ifndef EIGEN_CONSTRAINEDCG_H
 #define EIGEN_CONSTRAINEDCG_H
 
-#include <Eigen/Core>
+#include "../../../../Eigen/Core"
 
 namespace Eigen { 
 
@@ -99,7 +99,7 @@ void pseudo_inverse(const CMatrix &C, CINVMatrix &CINV)
 /** \ingroup IterativeSolvers_Module
   * Constrained conjugate gradient
   *
-  * Computes the minimum of \f$ 1/2((Ax).x) - bx \f$ under the contraint \f$ Cx \le f \f$
+  * Computes the minimum of \f$ 1/2((Ax).x) - bx \f$ under the constraint \f$ Cx \le f \f$
   */
 template<typename TMatrix, typename CMatrix,
          typename VectorX, typename VectorB, typename VectorF>
@@ -158,8 +158,6 @@ void constrained_cg(const TMatrix& A, const CMatrix& C, VectorX& x,
     rho = r.dot(z);
 
     if (iter.finished(rho)) break;
-
-    if (iter.noiseLevel() > 0 && transition) std::cerr << "CCG: transition\n";
     if (transition || iter.first()) gamma = 0.0;
     else gamma = (std::max)(0.0, (rho - old_z.dot(z)) / rho_1);
     p = z + gamma*p;
