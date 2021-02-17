@@ -46,7 +46,7 @@ typedef struct Joint_torque
 #define deg2rad		0.017453292519943
 #define rad2deg		57.295779513082323
 
-#define inner_dt 0.004
+#define inner_dt 0.002
 // ************* 12DOF IK ***********************//
 MatrixXd J_12DOF_T(12,12);
 MatrixXd J_12DOF(12,12);
@@ -729,7 +729,7 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
   dt = current_time.Double() - this->last_update_time.Double();
 
   f_cnt++;
-  if(f_cnt >= 4)
+  if(f_cnt >= 2)
   {
     for(int i = 0; i < 12; i++)
     {
@@ -748,7 +748,7 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
     f_cnt = 0;
   }
   
-  // torque_interpolation();
+  torque_interpolation();
 
   jointController();
 
@@ -1242,24 +1242,10 @@ void gazebo::SUBO3_plugin::torque_interpolation()
   {
     for(int i = 0 ; i < 12 ; i++)
     {
-      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.25;
-    }
-  }
-  else if(f_cnt == 1)
-  {
-    for(int i = 0 ; i < 12 ; i++)
-    {
       out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.5;
     }
   }
-  else if(f_cnt == 2)
-  {
-    for(int i = 0 ; i < 12 ; i++)
-    {
-      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.75;
-    }
-  }
-  else if(f_cnt == 3)
+  else if(f_cnt == 1)
   {
     for(int i = 0 ; i < 12 ; i++)
     {
@@ -1273,86 +1259,86 @@ void gazebo::SUBO3_plugin::jointController()
   //Torque Limit 감속기 정격토크참조함.
   for (unsigned int i = 0; i < 3; ++i)
   {
-    if (joint[i].torque >= 8560*3)
+    if (out_joint[i].torque >= 8560*3)
     {
-      joint[i].torque = 8560*3;
+      out_joint[i].torque = 8560*3;
     }
-    else if (joint[i].torque <= -8560*3)
+    else if (out_joint[i].torque <= -8560*3)
     {
-      joint[i].torque = -8560*3;
+      out_joint[i].torque = -8560*3;
     }
   }
 
   for (unsigned int i = 4; i < 9; ++i)
   {
-    if (joint[i].torque >= 8560*3)
+    if (out_joint[i].torque >= 8560*3)
     {
-        joint[i].torque = 8560*3;
+        out_joint[i].torque = 8560*3;
     }
-    else if (joint[i].torque <= -8560*3)
+    else if (out_joint[i].torque <= -8560*3)
     {
-        joint[i].torque = -8560*3;
+        out_joint[i].torque = -8560*3;
     }
   }
   
   for (unsigned int i = 10; i < 12; ++i)
   {
-    if (joint[i].torque >= 8560*3)
+    if (out_joint[i].torque >= 8560*3)
     {
-        joint[i].torque = 8560*3;
+        out_joint[i].torque = 8560*3;
     }
-    else if (joint[i].torque <= -8560*3)
+    else if (out_joint[i].torque <= -8560*3)
     {
-        joint[i].torque = -8560*3;
+        out_joint[i].torque = -8560*3;
     }
   }
                   
-  if (joint[3].torque >=12840*3)
+  if (out_joint[3].torque >=12840*3)
   {
-    joint[3].torque = 12840*3;
+    out_joint[3].torque = 12840*3;
   }
-  else if (joint[3].torque <= -12840*3)
+  else if (out_joint[3].torque <= -12840*3)
   {
-    joint[3].torque = -12840*3;
+    out_joint[3].torque = -12840*3;
   }
 
-  if (joint[9].torque >=12840*3)
+  if (out_joint[9].torque >=12840*3)
   {
-    joint[9].torque = 12840*3;
+    out_joint[9].torque = 12840*3;
   }
-  else if (joint[9].torque <= -12840*3)
+  else if (out_joint[9].torque <= -12840*3)
   {
-    joint[9].torque = -12840*3;
+    out_joint[9].torque = -12840*3;
   }
 
   //* Applying torques
-  this->L_PELVIS_YAW_JOINT->SetForce(2, joint[0].torque); //SUBO3.target_tor[0]);
-  this->L_PELVIS_ROLL_JOINT->SetForce(0, joint[1].torque); //SUBO3.target_tor[1]);
-  this->L_PELVIS_PITCH_JOINT->SetForce(1, joint[2].torque); //SUBO3.target_tor[2]);
-  this->L_KNEE_PITCH_JOINT->SetForce(1, joint[3].torque); //SUBO3.target_tor[3]);
-  this->L_ANKLE_PITCH_JOINT->SetForce(1, joint[4].torque); //SUBO3.target_tor[4]);
-  this->L_ANKLE_ROLL_JOINT->SetForce(0, joint[5].torque); //SUBO3.target_tor[5]);
+  this->L_PELVIS_YAW_JOINT->SetForce(2, out_joint[0].torque); //SUBO3.target_tor[0]);
+  this->L_PELVIS_ROLL_JOINT->SetForce(0, out_joint[1].torque); //SUBO3.target_tor[1]);
+  this->L_PELVIS_PITCH_JOINT->SetForce(1, out_joint[2].torque); //SUBO3.target_tor[2]);
+  this->L_KNEE_PITCH_JOINT->SetForce(1, out_joint[3].torque); //SUBO3.target_tor[3]);
+  this->L_ANKLE_PITCH_JOINT->SetForce(1, out_joint[4].torque); //SUBO3.target_tor[4]);
+  this->L_ANKLE_ROLL_JOINT->SetForce(0, out_joint[5].torque); //SUBO3.target_tor[5]);
 
-  this->R_PELVIS_YAW_JOINT->SetForce(2, joint[6].torque); //SUBO3.target_tor[6]);
-  this->R_PELVIS_ROLL_JOINT->SetForce(0, joint[7].torque); //SUBO3.target_tor[7]);
-  this->R_PELVIS_PITCH_JOINT->SetForce(1, joint[8].torque); //SUBO3.target_tor[8]);
-  this->R_KNEE_PITCH_JOINT->SetForce(1, joint[9].torque); //SUBO3.target_tor[9]);
-  this->R_ANKLE_PITCH_JOINT->SetForce(1, joint[10].torque); //SUBO3.target_tor[10]);
-  this->R_ANKLE_ROLL_JOINT->SetForce(0, joint[11].torque); //SUBO3.target_tor[11]);
+  this->R_PELVIS_YAW_JOINT->SetForce(2, out_joint[6].torque); //SUBO3.target_tor[6]);
+  this->R_PELVIS_ROLL_JOINT->SetForce(0, out_joint[7].torque); //SUBO3.target_tor[7]);
+  this->R_PELVIS_PITCH_JOINT->SetForce(1, out_joint[8].torque); //SUBO3.target_tor[8]);
+  this->R_KNEE_PITCH_JOINT->SetForce(1, out_joint[9].torque); //SUBO3.target_tor[9]);
+  this->R_ANKLE_PITCH_JOINT->SetForce(1, out_joint[10].torque); //SUBO3.target_tor[10]);
+  this->R_ANKLE_ROLL_JOINT->SetForce(0, out_joint[11].torque); //SUBO3.target_tor[11]);
 
-  cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
-  cout << "Left Pelvis Roll: " << joint[1].torque << endl;
-  cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
-  cout << "Left Knee Pitch: " << joint[3].torque << endl;
-  cout << "Left Ankle Pitch: " << joint[4].torque << endl;
-  cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
+  cout << "Left Pelvis Yaw: " << out_joint[0].torque << endl;
+  cout << "Left Pelvis Roll: " << out_joint[1].torque << endl;
+  cout << "Left Pelvis Pitch: " << out_joint[2].torque << endl;
+  cout << "Left Knee Pitch: " << out_joint[3].torque << endl;
+  cout << "Left Ankle Pitch: " << out_joint[4].torque << endl;
+  cout << "Left Ankle Roll: " << out_joint[5].torque << endl << endl;
 
-  cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
-  cout << "Right Pelvis Roll: " << joint[7].torque << endl;
-  cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
-  cout << "Right Knee Pitch: " << joint[9].torque << endl;
-  cout << "Right Ankle Pitch: " << joint[10].torque << endl;
-  cout << "Right Ankle Roll: " << joint[11].torque << endl;
+  cout << "Right Pelvis Yaw: " << out_joint[6].torque << endl;
+  cout << "Right Pelvis Roll: " << out_joint[7].torque << endl;
+  cout << "Right Pelvis Pitch: " << out_joint[8].torque << endl;
+  cout << "Right Knee Pitch: " << out_joint[9].torque << endl;
+  cout << "Right Ankle Pitch: " << out_joint[10].torque << endl;
+  cout << "Right Ankle Roll: " << out_joint[11].torque << endl;
   cout << "======================================================" << endl;
 }
 
