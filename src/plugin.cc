@@ -46,7 +46,7 @@ typedef struct Joint_torque
 #define deg2rad		0.017453292519943
 #define rad2deg		57.295779513082323
 
-#define inner_dt 0.001
+#define inner_dt 0.004
 // ************* 12DOF IK ***********************//
 MatrixXd J_12DOF_T(12,12);
 MatrixXd J_12DOF(12,12);
@@ -378,11 +378,6 @@ namespace gazebo
     FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
     FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
     FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
-    FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
-    FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
-    FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
-    FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
-    FILE* tmpdata12=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata12.txt","w");
 
     void Print(void); //Print function
   };
@@ -734,12 +729,12 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
   dt = current_time.Double() - this->last_update_time.Double();
 
   f_cnt++;
-  if(f_cnt >= 1)
+  if(f_cnt >= 4)
   {
-    // for(int i = 0; i < 12; i++)
-    // {
-    //   prev_out_joint[i].torque = joint[i].torque;
-    // }
+    for(int i = 0; i < 12; i++)
+    {
+      prev_out_joint[i].torque = joint[i].torque;
+    }
 
     IMUSensorRead();
     FTSensorRead();
@@ -753,7 +748,7 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
     f_cnt = 0;
   }
   
-  // torque_interpolation();
+  torque_interpolation();
 
   jointController();
 
@@ -1051,8 +1046,8 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
   VectorNd QDot;
   QDot = VectorNd::Zero(6);
 
-  rbdl.Kp << 4000, 5000, 24000, 5000, 24000, 5000;
-  rbdl.Kv << 10, 20, 30, 20, 30, 10;
+  rbdl.Kp << 4000, 4000, 10000, 4000, 10000, 4000;
+  rbdl.Kv << 100, 100, 250, 100, 250, 100;
 
   //*********************Left Leg**********************//
   VectorNd X_CTC;
@@ -1161,25 +1156,21 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 {
   if(rbdl.num_leg == 0)
   {
-    if(start_flag == 0)
-    {
-      rbdl.Kp << 100, 3000, 3000, 3000, 3000, 3000;
-      rbdl.Kv << 1, 6, 6, 6, 6, 6;
-    }
+    rbdl.Kp << 100, 3000, 3000, 3000, 3000, 3000;
+    rbdl.Kv << 1, 6, 6, 6, 6, 6;
   }
   else if(rbdl.num_leg == 1)
   {
     if(start_flag == 0)
     {
-      rbdl.Kp << 100, 3000, 3000, 3000, 3000, 3000;
+      rbdl.Kp << 10, 1000, 1000, 1000, 1000, 1000;
       rbdl.Kv << 1, 6, 6, 6, 6, 6;
     }
   }
 
   //*********************Left Leg**********************//
-  VectorNd X_CTC, tmp;
+  VectorNd X_CTC;
   X_CTC = VectorNd::Zero(6);
-  tmp = VectorNd::Zero(6);
 
   VectorNd q_CTC;
   q_CTC = VectorNd::Zero(6);
@@ -1196,7 +1187,6 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
   }
 
   q_CTC = rbdl.Inv_A_Jacobian * (X_CTC - rbdl.A_Jacobian_dot*rbdl.QDot);
-  tmp = rbdl.A_Jacobian_dot*rbdl.QDot;
 
   NonlinearEffects(*rbdl.rbdl_model, rbdl.Q, rbdl.QDot, NE_Tau, NULL);
   CompositeRigidBodyAlgorithm(*rbdl.rbdl_model, rbdl.Q, I_Matrix, true);
@@ -1252,28 +1242,28 @@ void gazebo::SUBO3_plugin::torque_interpolation()
   {
     for(int i = 0 ; i < 12 ; i++)
     {
-      out_joint[i].torque = prev_out_joint[i].torque;
+      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.25;
     }
   }
   else if(f_cnt == 1)
   {
     for(int i = 0 ; i < 12 ; i++)
     {
-      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.25;
+      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.5;
     }
   }
   else if(f_cnt == 2)
   {
     for(int i = 0 ; i < 12 ; i++)
     {
-      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.5;
+      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.75;
     }
   }
   else if(f_cnt == 3)
   {
     for(int i = 0 ; i < 12 ; i++)
     {
-      out_joint[i].torque = prev_out_joint[i].torque + (joint[i].torque - prev_out_joint[i].torque) * 0.75;
+      out_joint[i].torque = joint[i].torque;
     }
   }
 }
@@ -1336,33 +1326,33 @@ void gazebo::SUBO3_plugin::jointController()
   }
 
   //* Applying torques
-  this->L_PELVIS_YAW_JOINT->SetForce(2, joint[0].torque); //SUBO3.target_tor[0]);
-  this->L_PELVIS_ROLL_JOINT->SetForce(0, joint[1].torque); //SUBO3.target_tor[1]);
-  this->L_PELVIS_PITCH_JOINT->SetForce(1, joint[2].torque); //SUBO3.target_tor[2]);
-  this->L_KNEE_PITCH_JOINT->SetForce(1, joint[3].torque); //SUBO3.target_tor[3]);
-  this->L_ANKLE_PITCH_JOINT->SetForce(1, joint[4].torque); //SUBO3.target_tor[4]);
-  this->L_ANKLE_ROLL_JOINT->SetForce(0, joint[5].torque); //SUBO3.target_tor[5]);
+  this->L_PELVIS_YAW_JOINT->SetForce(2, out_joint[0].torque); //SUBO3.target_tor[0]);
+  this->L_PELVIS_ROLL_JOINT->SetForce(0, out_joint[1].torque); //SUBO3.target_tor[1]);
+  this->L_PELVIS_PITCH_JOINT->SetForce(1, out_joint[2].torque); //SUBO3.target_tor[2]);
+  this->L_KNEE_PITCH_JOINT->SetForce(1, out_joint[3].torque); //SUBO3.target_tor[3]);
+  this->L_ANKLE_PITCH_JOINT->SetForce(1, out_joint[4].torque); //SUBO3.target_tor[4]);
+  this->L_ANKLE_ROLL_JOINT->SetForce(0, out_joint[5].torque); //SUBO3.target_tor[5]);
 
-  this->R_PELVIS_YAW_JOINT->SetForce(2, joint[6].torque); //SUBO3.target_tor[6]);
-  this->R_PELVIS_ROLL_JOINT->SetForce(0, joint[7].torque); //SUBO3.target_tor[7]);
-  this->R_PELVIS_PITCH_JOINT->SetForce(1, joint[8].torque); //SUBO3.target_tor[8]);
-  this->R_KNEE_PITCH_JOINT->SetForce(1, joint[9].torque); //SUBO3.target_tor[9]);
-  this->R_ANKLE_PITCH_JOINT->SetForce(1, joint[10].torque); //SUBO3.target_tor[10]);
-  this->R_ANKLE_ROLL_JOINT->SetForce(0, joint[11].torque); //SUBO3.target_tor[11]);
+  this->R_PELVIS_YAW_JOINT->SetForce(2, out_joint[6].torque); //SUBO3.target_tor[6]);
+  this->R_PELVIS_ROLL_JOINT->SetForce(0, out_joint[7].torque); //SUBO3.target_tor[7]);
+  this->R_PELVIS_PITCH_JOINT->SetForce(1, out_joint[8].torque); //SUBO3.target_tor[8]);
+  this->R_KNEE_PITCH_JOINT->SetForce(1, out_joint[9].torque); //SUBO3.target_tor[9]);
+  this->R_ANKLE_PITCH_JOINT->SetForce(1, out_joint[10].torque); //SUBO3.target_tor[10]);
+  this->R_ANKLE_ROLL_JOINT->SetForce(0, out_joint[11].torque); //SUBO3.target_tor[11]);
 
-  cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
-  cout << "Left Pelvis Roll: " << joint[1].torque << endl;
-  cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
-  cout << "Left Knee Pitch: " << joint[3].torque << endl;
-  cout << "Left Ankle Pitch: " << joint[4].torque << endl;
-  cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
+  cout << "Left Pelvis Yaw: " << out_joint[0].torque << endl;
+  cout << "Left Pelvis Roll: " << out_joint[1].torque << endl;
+  cout << "Left Pelvis Pitch: " << out_joint[2].torque << endl;
+  cout << "Left Knee Pitch: " << out_joint[3].torque << endl;
+  cout << "Left Ankle Pitch: " << out_joint[4].torque << endl;
+  cout << "Left Ankle Roll: " << out_joint[5].torque << endl << endl;
 
-  cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
-  cout << "Right Pelvis Roll: " << joint[7].torque << endl;
-  cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
-  cout << "Right Knee Pitch: " << joint[9].torque << endl;
-  cout << "Right Ankle Pitch: " << joint[10].torque << endl;
-  cout << "Right Ankle Roll: " << joint[11].torque << endl;
+  cout << "Right Pelvis Yaw: " << out_joint[6].torque << endl;
+  cout << "Right Pelvis Roll: " << out_joint[7].torque << endl;
+  cout << "Right Pelvis Pitch: " << out_joint[8].torque << endl;
+  cout << "Right Knee Pitch: " << out_joint[9].torque << endl;
+  cout << "Right Ankle Pitch: " << out_joint[10].torque << endl;
+  cout << "Right Ankle Roll: " << out_joint[11].torque << endl;
   cout << "======================================================" << endl;
 }
 
@@ -1715,34 +1705,34 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()  // 0
 
   if(cnt_time <= step_time)
   {
-    Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
-    Theo_RL_th[1] = 0*Init_trajectory*deg2rad;
-    Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
-    Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
-    Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
-    Theo_RL_th[5] = 0*Init_trajectory*deg2rad;
-
-    Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
-    Theo_LL_th[1] = 0*Init_trajectory*deg2rad;
-    Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
-    Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
-    Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
-    Theo_LL_th[5] = 0*Init_trajectory*deg2rad;
-
-    //one leg
     // Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
-    // Theo_RL_th[1] = -5*Init_trajectory*deg2rad;
+    // Theo_RL_th[1] = 0*Init_trajectory*deg2rad;
     // Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
     // Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
     // Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
-    // Theo_RL_th[5] = 5*Init_trajectory*deg2rad;
+    // Theo_RL_th[5] = 0*Init_trajectory*deg2rad;
 
     // Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
-    // Theo_LL_th[1] = -5*Init_trajectory*deg2rad;
+    // Theo_LL_th[1] = 0*Init_trajectory*deg2rad;
     // Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
     // Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
     // Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
-    // Theo_LL_th[5] = 5*Init_trajectory*deg2rad;
+    // Theo_LL_th[5] = 0*Init_trajectory*deg2rad;
+
+    //one leg
+    Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
+    Theo_RL_th[1] = -5*Init_trajectory*deg2rad;
+    Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
+    Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
+    Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
+    Theo_RL_th[5] = 5*Init_trajectory*deg2rad;
+
+    Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
+    Theo_LL_th[1] = -5*Init_trajectory*deg2rad;
+    Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
+    Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
+    Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
+    Theo_LL_th[5] = 5*Init_trajectory*deg2rad;
   }
   
   ///////////////토크 입력////////////////
@@ -2304,57 +2294,27 @@ void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 9
   A_R.Q(1) = 0;
 
   // Target Pos, Pos Dot, Pos DDot
-  A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.507;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
-  A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
-  A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
-
   A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.12;  A_R.Des_X(2) = -0.4;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
   A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
   A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
 
-  // Target Pos, Pos Dot, Pos DDot
-  G_L.Des_X(0) = 0.00113;  G_L.Des_X(1) = -0.0758;  G_L.Des_X(2) = 0.4995;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
-  G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
-  G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
-
-  G_R.Des_X(0) = 0.000795;  G_R.Des_X(1) = -0.0754;  G_R.Des_X(2) = 0.5;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
-  G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
-  G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
-
-  // Target Pos, Pos Dot, Pos DDot
   O_L.Des_X(0) = 0;  O_L.Des_X(1) = -0.045;  O_L.Des_X(2) = 0.507;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
   O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
   O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
 
-  O_R.Des_X(0) = 0;  O_R.Des_X(1) = 0;  O_R.Des_X(2) = 0.507;  O_R.Des_X(3) = 0;  O_R.Des_X(4) = 0;  O_R.Des_X(5) = 0;
-  O_R.Des_XDot(0) = 0;  O_R.Des_XDot(1) = 0;  O_R.Des_XDot(2) = 0;  O_R.Des_XDot(3) = 0;  O_R.Des_XDot(4) = 0;  O_R.Des_XDot(5) = 0;
-  O_R.Des_XDDot(0) = 0;  O_R.Des_XDDot(1) = 0;  O_R.Des_XDDot(2) = 0;  O_R.Des_XDDot(3) = 0;  O_R.Des_XDDot(4) = 0;  O_R.Des_XDDot(5) = 0;
-
-  // Calc_Feedback_Pos(A_L);  // calculate the feedback
   Calc_Feedback_Pos(A_R);  // calculate the feedback
-  // Calc_CTC_Torque(A_L);    // calculate the CTC torque
   Calc_CTC_Torque(A_R);    // calculate the CTC torque
 
-  // Calc_Feedback_Pos(G_L);  // calculate the feedback
-  // Calc_Feedback_Pos(G_R);  // calculate the feedback
-  // Calc_CTC_Torque(G_L);    // calculate the CTC torque
-  // Calc_CTC_Torque(G_R);    // calculate the CTC torque
-
   Calc_Feedback_Pos(O_L);  // calculate the feedback
-  // Calc_Feedback_Pos(O_R);  // calculate the feedback
   Calc_CTC_Torque(O_L);    // calculate the CTC torque
-  // Calc_CTC_Torque(O_R);    // calculate the CTC torque
 
 
   if(cnt_time <= step_time)
   {
     for (int i = 0; i < 6; i++)
     {
-      // joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
-
       joint[5-i].torque = old_joint[5-i].torque*old_trajectory + O_L.torque_CTC(i)*new_trajectory;
-      
+      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
     }
   }
   else
@@ -2372,6 +2332,17 @@ void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 9
 
 void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플로팅
 {
+  if(CONTROL_MODE != IDLE)
+  {
+    fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
+    fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", out_joint[0].torque,out_joint[1].torque,out_joint[2].torque,out_joint[3].torque,out_joint[4].torque,out_joint[5].torque);
+    fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", A_L.Des_X(0),A_L.Des_X(1),A_L.Des_X(2),A_L.Des_X(3),A_L.Des_X(4),A_L.Des_X(5));
+    fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos(0),A_L.Foot_Pos(1),A_L.Foot_Pos(2),A_L.Foot_Pos(3),A_L.Foot_Pos(4),A_L.Foot_Pos(5));
+    fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", G_L.Des_X(0),G_L.Des_X(1),G_L.Des_X(2),G_L.Des_X(3),G_L.Des_X(4),G_L.Des_X(5));
+    fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos(0),G_L.Foot_Pos(1),G_L.Foot_Pos(2),G_L.Foot_Pos(3),G_L.Foot_Pos(4),G_L.Foot_Pos(5));
+    fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", O_L.Des_X(0),O_L.Des_X(1),O_L.Des_X(2),O_L.Des_X(3),O_L.Des_X(4),O_L.Des_X(5));
+    fprintf(tmpdata7, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos(0),O_L.Foot_Pos(1),O_L.Foot_Pos(2),O_L.Foot_Pos(3),O_L.Foot_Pos(4),O_L.Foot_Pos(5));        
+  }
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
