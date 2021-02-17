@@ -46,7 +46,7 @@ typedef struct Joint_torque
 #define deg2rad		0.017453292519943
 #define rad2deg		57.295779513082323
 
-#define inner_dt 0.002
+#define inner_dt 0.001
 // ************* 12DOF IK ***********************//
 MatrixXd J_12DOF_T(12,12);
 MatrixXd J_12DOF(12,12);
@@ -728,28 +728,15 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
   current_time = this->model->GetWorld()->GetSimTime();
   dt = current_time.Double() - this->last_update_time.Double();
 
-  f_cnt++;
-  if(f_cnt >= 2)
-  {
-    for(int i = 0; i < 12; i++)
-    {
-      prev_out_joint[i].torque = joint[i].torque;
-    }
+  IMUSensorRead();
+  FTSensorRead();
+  EncoderRead(); //FK 푸는것도 포함.
 
-    IMUSensorRead();
-    FTSensorRead();
-    EncoderRead(); //FK 푸는것도 포함.
+  CalcBodyAngle();
+  RBDL_variable_update();
 
-    CalcBodyAngle();
-    RBDL_variable_update();
-
-    PostureGeneration(); // PostureGeneration 하위에 Trajectory 하위에 IK푸는것 포함.
-
-    f_cnt = 0;
-  }
+  PostureGeneration(); // PostureGeneration 하위에 Trajectory 하위에 IK푸는것 포함.
   
-  // torque_interpolation();
-
   jointController();
 
   ROSMsgPublish();
