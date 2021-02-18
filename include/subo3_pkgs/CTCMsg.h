@@ -25,6 +25,7 @@ struct CTCMsg_
 
   CTCMsg_()
     : TF(0)
+    , stp_time(0.0)
     , L_Des_X_x(0.0)
     , L_Des_X_y(0.0)
     , L_Des_X_z(0.0)
@@ -76,6 +77,7 @@ struct CTCMsg_
     }
   CTCMsg_(const ContainerAllocator& _alloc)
     : TF(0)
+    , stp_time(0.0)
     , L_Des_X_x(0.0)
     , L_Des_X_y(0.0)
     , L_Des_X_z(0.0)
@@ -131,6 +133,9 @@ struct CTCMsg_
 
    typedef int32_t _TF_type;
   _TF_type TF;
+
+   typedef float _stp_time_type;
+  _stp_time_type stp_time;
 
    typedef float _L_Des_X_x_type;
   _L_Des_X_x_type L_Des_X_x;
@@ -354,12 +359,12 @@ struct MD5Sum< ::subo3_pkgs::CTCMsg_<ContainerAllocator> >
 {
   static const char* value()
   {
-    return "8d3e0292d24668360f7f2072707e28a1";
+    return "c3b215d61ec01fd4542c4d3691c8fe78";
   }
 
   static const char* value(const ::subo3_pkgs::CTCMsg_<ContainerAllocator>&) { return value(); }
-  static const uint64_t static_value1 = 0x8d3e0292d2466836ULL;
-  static const uint64_t static_value2 = 0x0f7f2072707e28a1ULL;
+  static const uint64_t static_value1 = 0xc3b215d61ec01fd4ULL;
+  static const uint64_t static_value2 = 0x542c4d3691c8fe78ULL;
 };
 
 template<class ContainerAllocator>
@@ -379,6 +384,7 @@ struct Definition< ::subo3_pkgs::CTCMsg_<ContainerAllocator> >
   static const char* value()
   {
     return "int32 TF\n\
+float32 stp_time\n\
 float32 L_Des_X_x\n\
 float32 L_Des_X_y\n\
 float32 L_Des_X_z\n\
@@ -446,6 +452,7 @@ namespace serialization
     template<typename Stream, typename T> inline static void allInOne(Stream& stream, T m)
     {
       stream.next(m.TF);
+      stream.next(m.stp_time);
       stream.next(m.L_Des_X_x);
       stream.next(m.L_Des_X_y);
       stream.next(m.L_Des_X_z);
@@ -514,6 +521,8 @@ struct Printer< ::subo3_pkgs::CTCMsg_<ContainerAllocator> >
   {
     s << indent << "TF: ";
     Printer<int32_t>::stream(s, indent + "  ", v.TF);
+    s << indent << "stp_time: ";
+    Printer<float>::stream(s, indent + "  ", v.stp_time);
     s << indent << "L_Des_X_x: ";
     Printer<float>::stream(s, indent + "  ", v.L_Des_X_x);
     s << indent << "L_Des_X_y: ";

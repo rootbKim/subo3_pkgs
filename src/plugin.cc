@@ -56,6 +56,7 @@ double Theo_RL_th[6] = {0.,0.,0.,0.,0.,0.}, Theo_LL_th[6] = {0.,0.,0.,0.,0.,0.};
 double Act_RL_th[6] = {0.,0.,0.,0.,0.,0.}, Act_LL_th[6] = {0.,0.,0.,0.,0.,0.};
 //*************** Trajectroy Variables**************//    
 double step_time = 0;
+double step_time2 = 0;
 double cnt_time = 0;
 unsigned int cnt = 0;
 double chg_step_time = 0;
@@ -310,6 +311,7 @@ namespace gazebo
     enum ControlMode
     {
       IDLE = 0,
+      IDLE2,
       GRAVITY_CONTROL,
       CTC_CONTROL,
       CTC_CONTROL_POS,
@@ -357,6 +359,7 @@ namespace gazebo
     void Calc_CTC_Torque(G_RBDL &rbdl);
     void CalcBodyAngle();
     void Init_Pos_Traj();
+    void Init_Pos_Traj2();
     void Gravity_Cont();
     void CTC_Control();
     void CTC_Control_Pos();
@@ -665,7 +668,7 @@ void gazebo::SUBO3_plugin::L_Ground_Model(G_RBDL &rbdl)
   else if(rbdl.num_leg == 1)  // O_L
   {
     rbdl.bodyI = Math::Matrix3d(1.292935,-0.005110,0.037323, -0.005110,1.238202,-0.143039, 0.037323,-0.143039,0.099136);
-    rbdl.body = Body(14.835537, Math::Vector3d(0.013367, 0.104708, 0.06775), rbdl.bodyI);
+    rbdl.body = Body(14.835537, Math::Vector3d(0.013367, 0.104708, -0.06775), rbdl.bodyI);
     rbdl.joint_PELVIS_YAW = Joint(JointType::JointTypeRevolute, Math::Vector3d(0, 0, 1));
     rbdl.body_id = rbdl.rbdl_model->Model::AddBody(rbdl.body_PELVIS_2_id, Xtrans(Math::Vector3d(0, 0, 0.074)), rbdl.joint_PELVIS_YAW, rbdl.body);
   }
@@ -1026,6 +1029,8 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(A_RBDL &rbdl)
   rbdl.Foot_Pos(4) = theta;
   rbdl.Foot_Pos(5) = pi;
   rbdl.Foot_Pos_dot = rbdl.A_Jacobian*QDot;
+
+  // cout << rbdl.Foot_Pos << endl << endl;
 }
 
 void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
@@ -1033,7 +1038,7 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
   VectorNd QDot;
   QDot = VectorNd::Zero(6);
 
-  rbdl.Kp << 4000, 4000, 10000, 4000, 10000, 4000;
+  rbdl.Kp << 4000, 4000, 15000, 4000, 15000, 4000;
   rbdl.Kv << 100, 100, 250, 100, 250, 100;
 
   //*********************Left Leg**********************//
@@ -1137,6 +1142,9 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(G_RBDL &rbdl)
   rbdl.Foot_Pos(4) = theta;
   rbdl.Foot_Pos(5) = pi;
   rbdl.Foot_Pos_dot = rbdl.A_Jacobian*rbdl.QDot;
+
+  // cout << rbdl.Foot_Pos << endl;
+  // cout << "============================" << endl;
 }
 
 void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
@@ -1148,11 +1156,8 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
   }
   else if(rbdl.num_leg == 1)
   {
-    if(start_flag == 0)
-    {
-      rbdl.Kp << 10, 1000, 1000, 1000, 1000, 1000;
-      rbdl.Kv << 1, 6, 6, 6, 6, 6;
-    }
+    rbdl.Kp << 10000, 15000, 100000, 30000, 10000, 10000;
+    rbdl.Kv << 1, 1, 10, 3, 1, 1;
   }
 
   //*********************Left Leg**********************//
@@ -1249,10 +1254,14 @@ void gazebo::SUBO3_plugin::jointController()
     if (joint[i].torque >= 8560*3)
     {
       joint[i].torque = 8560*3;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
     else if (joint[i].torque <= -8560*3)
     {
       joint[i].torque = -8560*3;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
   }
 
@@ -1260,11 +1269,15 @@ void gazebo::SUBO3_plugin::jointController()
   {
     if (joint[i].torque >= 8560*3)
     {
-        joint[i].torque = 8560*3;
+      joint[i].torque = 8560*3;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
     else if (joint[i].torque <= -8560*3)
     {
-        joint[i].torque = -8560*3;
+      joint[i].torque = -8560*3;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
   }
   
@@ -1272,30 +1285,42 @@ void gazebo::SUBO3_plugin::jointController()
   {
     if (joint[i].torque >= 8560*3)
     {
-        joint[i].torque = 8560*3;
+      joint[i].torque = 8560*3;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
     else if (joint[i].torque <= -8560*3)
     {
-        joint[i].torque = -8560*3;
+      joint[i].torque = -8560*3;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
   }
                   
   if (joint[3].torque >=12840*3)
   {
     joint[3].torque = 12840*3;
+    CONTROL_MODE = IDLE;
+    cout << "Break Joint Num: " << 3 << endl;
   }
   else if (joint[3].torque <= -12840*3)
   {
     joint[3].torque = -12840*3;
+    CONTROL_MODE = IDLE;
+    cout << "Break Joint Num: " << 3 << endl;
   }
 
   if (joint[9].torque >=12840*3)
   {
     joint[9].torque = 12840*3;
+    CONTROL_MODE = IDLE;
+    cout << "Break Joint Num: " << 9 << endl;
   }
   else if (joint[9].torque <= -12840*3)
   {
     joint[9].torque = -12840*3;
+    CONTROL_MODE = IDLE;
+    cout << "Break Joint Num: " << 9 << endl;
   }
 
   //* Applying torques
@@ -1311,22 +1336,7 @@ void gazebo::SUBO3_plugin::jointController()
   this->R_PELVIS_PITCH_JOINT->SetForce(1, joint[8].torque); //SUBO3.target_tor[8]);
   this->R_KNEE_PITCH_JOINT->SetForce(1, joint[9].torque); //SUBO3.target_tor[9]);
   this->R_ANKLE_PITCH_JOINT->SetForce(1, joint[10].torque); //SUBO3.target_tor[10]);
-  this->R_ANKLE_ROLL_JOINT->SetForce(0, joint[11].torque); //SUBO3.target_tor[11]);
-
-  cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
-  cout << "Left Pelvis Roll: " << joint[1].torque << endl;
-  cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
-  cout << "Left Knee Pitch: " << joint[3].torque << endl;
-  cout << "Left Ankle Pitch: " << joint[4].torque << endl;
-  cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
-
-  cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
-  cout << "Right Pelvis Roll: " << joint[7].torque << endl;
-  cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
-  cout << "Right Knee Pitch: " << joint[9].torque << endl;
-  cout << "Right Ankle Pitch: " << joint[10].torque << endl;
-  cout << "Right Ankle Roll: " << joint[11].torque << endl;
-  cout << "======================================================" << endl;
+  this->R_ANKLE_ROLL_JOINT->SetForce(0, joint[11].torque); //SUBO3.target_tor[11]); 
 }
 
 void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
@@ -1338,48 +1348,53 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
   {
     cnt = 0;
     CONTROL_MODE = IDLE;
-  }       
+  } 
   else if (msg->data == 1) //button-6
+  {
+    cnt = 0;
+    CONTROL_MODE = IDLE2;
+  }      
+  else if (msg->data == 2) //button-6
   {
     cnt = 0;
     CONTROL_MODE = GRAVITY_CONTROL;
   }
-  else if (msg->data == 2) //button-6
+  else if (msg->data == 3) //button-6
   {
     cnt = 0;
     CONTROL_MODE = CTC_CONTROL;
   }
-  else if (msg->data == 3) //button-6
+  else if (msg->data == 4) //button-6
   {
     cnt = 0;
     CONTROL_MODE = CTC_CONTROL_POS;
   }
-  else if (msg->data == 4) //button-6
+  else if (msg->data == 5) //button-6
   {
     cnt = 0;
     CONTROL_MODE = CTC_CONTROL_CONT_POS;
   }
-  else if (msg->data == 5) //button-6
+  else if (msg->data == 6) //button-6
   {
     cnt = 0;
     CONTROL_MODE = GROUND_GRAVITY_CONTROL;
   }
-  else if (msg->data == 6) //button-6
+  else if (msg->data == 7) //button-6
   {
     cnt = 0;
     CONTROL_MODE = GROUND_CTC_CONTROL;
   }
-  else if (msg->data == 7) //button-6
+  else if (msg->data == 8) //button-6
   {
     cnt = 0;
     CONTROL_MODE = GROUND_CTC_CONTROL_POS;
   }
-  else if (msg->data == 8) //button-6
+  else if (msg->data == 9) //button-6
   {
     cnt = 0;
     CONTROL_MODE = GROUND_CTC_CONTROL_CONT_POS;
   }
-  else if (msg->data == 9) //button-6
+  else if (msg->data == 10) //button-6
   {
     cnt = 0;
     CONTROL_MODE = ONE_GROUND_CTC_CONTROL;
@@ -1535,11 +1550,14 @@ void gazebo::SUBO3_plugin::msgCallback3(const subo3_pkgs::CTCMsg::ConstPtr &msg)
 void gazebo::SUBO3_plugin::PostureGeneration()
 {
   int test_cnt = 0;
-  // cout << dt << endl;
+
   if (CONTROL_MODE == IDLE)
   {
-    //std::cout << "Mode is Init_Pos_Mode" << std::endl;
     Init_Pos_Traj();
+  }
+  if (CONTROL_MODE == IDLE2)
+  {
+    Init_Pos_Traj2();
   }
   else if (CONTROL_MODE == GRAVITY_CONTROL) 
   {
@@ -1678,6 +1696,43 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()  // 0
 
   if(cnt_time <= step_time)
   {
+    Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
+    Theo_RL_th[1] = 0*Init_trajectory*deg2rad;
+    Theo_RL_th[2] = 0*Init_trajectory*deg2rad;
+    Theo_RL_th[3] = 0*Init_trajectory*deg2rad;
+    Theo_RL_th[4] = 0*Init_trajectory*deg2rad;
+    Theo_RL_th[5] = 0*Init_trajectory*deg2rad;
+
+    Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
+    Theo_LL_th[1] = 0*Init_trajectory*deg2rad;
+    Theo_LL_th[2] = 0*Init_trajectory*deg2rad;
+    Theo_LL_th[3] = 0*Init_trajectory*deg2rad;
+    Theo_LL_th[4] = 0*Init_trajectory*deg2rad;
+    Theo_LL_th[5] = 0*Init_trajectory*deg2rad;
+  }
+  
+  ///////////////토크 입력////////////////
+  for (int i = 0; i < 6; i++) {
+    joint[i].torque = Kp_q[i]*(Theo_RL_th[i] - actual_joint_pos[i]) + Kd_q[i] * (0 - actual_joint_vel[i]); // 기본 PV제어 코드
+    joint[i+6].torque = Kp_q[i]*(Theo_LL_th[i] - actual_joint_pos[i+6]) + Kd_q[i] * (0 - actual_joint_vel[i+6]); // 기본 PV제어 코드
+    
+    old_joint[i].torque = joint[i].torque;
+    old_joint[i+6].torque = joint[i+6].torque;
+  }
+}
+
+void gazebo::SUBO3_plugin::Init_Pos_Traj2()  // 1
+{
+  Kp_q << 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200;
+  Kd_q << 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+  step_time = 2; //주기설정 (초) 변수
+  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+
+  double Init_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  if(cnt_time <= step_time)
+  {
     // Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
     // Theo_RL_th[1] = 0*Init_trajectory*deg2rad;
     // Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
@@ -1694,18 +1749,18 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()  // 0
 
     //one leg
     Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
-    Theo_RL_th[1] = -5*Init_trajectory*deg2rad;
+    Theo_RL_th[1] = -10*Init_trajectory*deg2rad;
     Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
     Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
     Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
-    Theo_RL_th[5] = 5*Init_trajectory*deg2rad;
+    Theo_RL_th[5] = 10*Init_trajectory*deg2rad;
 
     Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
-    Theo_LL_th[1] = -5*Init_trajectory*deg2rad;
+    Theo_LL_th[1] = -10*Init_trajectory*deg2rad;
     Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
     Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
     Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
-    Theo_LL_th[5] = 5*Init_trajectory*deg2rad;
+    Theo_LL_th[5] = 10*Init_trajectory*deg2rad;
   }
   
   ///////////////토크 입력////////////////
@@ -1716,9 +1771,13 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()  // 0
     old_joint[i].torque = joint[i].torque;
     old_joint[i+6].torque = joint[i+6].torque;
   }
+
+  // Calc_Feedback_Pos(A_R);  // calculate the feedback
+  // Calc_Feedback_Pos(O_L);  // calculate the feedback
+
 }
 
-void gazebo::SUBO3_plugin::Gravity_Cont() // 1
+void gazebo::SUBO3_plugin::Gravity_Cont() // 2
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -1736,7 +1795,7 @@ void gazebo::SUBO3_plugin::Gravity_Cont() // 1
   }
 }
 
-void gazebo::SUBO3_plugin::CTC_Control()  // 2
+void gazebo::SUBO3_plugin::CTC_Control()  // 3
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -1784,7 +1843,7 @@ void gazebo::SUBO3_plugin::CTC_Control()  // 2
   }
 }
 
-void gazebo::SUBO3_plugin::CTC_Control_Pos()  // 3
+void gazebo::SUBO3_plugin::CTC_Control_Pos()  // 4
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -1866,7 +1925,7 @@ void gazebo::SUBO3_plugin::CTC_Control_Pos()  // 3
   }
 }
 
-void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos() // 4
+void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos() // 5
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -1992,7 +2051,7 @@ void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos() // 4
   }
 }
 
-void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 5
+void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 6
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -2008,9 +2067,9 @@ void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 5
   }
 }
 
-void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 6
+void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
 {
-  step_time = 0.5; //주기설정 (초) 변수
+  step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
@@ -2018,11 +2077,11 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 6
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
   // Target Pos, Pos Dot, Pos DDot
-  G_L.Des_X(0) = 0;  G_L.Des_X(1) = -0.045;  G_L.Des_X(2) = 0.507;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+  G_L.Des_X(0) = 0;  G_L.Des_X(1) = -0.0914;  G_L.Des_X(2) = 0.49;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
   G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
   G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
 
-  G_R.Des_X(0) = 0;  G_R.Des_X(1) = -0.045;  G_R.Des_X(2) = 0.507;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+  G_R.Des_X(0) = 0;  G_R.Des_X(1) = -0.0914;  G_R.Des_X(2) = 0.49;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
   G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
   G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
 
@@ -2052,7 +2111,7 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 6
   }
 }
 
-void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 7
+void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 8
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -2130,7 +2189,7 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 7
   }
 }
 
-void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 8
+void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 9
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -2252,14 +2311,18 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 8
   }
 }
 
-void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 9
+void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 10
 {
-  step_time = 1; //주기설정 (초) 변수
+  step_time = 0.5; //주기설정 (초) 변수
+  step_time2 = 0.5;
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  double old_trajectory2 = 0.5*(cos(PI*(cnt_time/step_time2)));
+  double new_trajectory2 = 0.5*(1-cos(PI*(cnt_time/step_time2)));
 
   A_L.Q(0) = 0;
   A_L.Q(1) = 0;
@@ -2267,11 +2330,11 @@ void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 9
   A_R.Q(1) = 0;
 
   // Target Pos, Pos Dot, Pos DDot
-  A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.12;  A_R.Des_X(2) = -0.4;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+  A_R.Des_X(0) = 0.013;  A_R.Des_X(1) = -0.164;  A_R.Des_X(2) = -0.4;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
   A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
   A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
 
-  O_L.Des_X(0) = 0;  O_L.Des_X(1) = -0.045;  O_L.Des_X(2) = 0.507;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
+  O_L.Des_X(0) = 0.015;  O_L.Des_X(1) = -0.0914;  O_L.Des_X(2) = 0.49;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
   O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
   O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
 
@@ -2287,7 +2350,6 @@ void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 9
     for (int i = 0; i < 6; i++)
     {
       joint[5-i].torque = old_joint[5-i].torque*old_trajectory + O_L.torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
     }
   }
   else
@@ -2295,10 +2357,25 @@ void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 9
     for (int i = 0; i < 6; i++)
     {
       joint[5-i].torque = O_L.torque_CTC(i);
+         
+      old_joint[5-i].torque = joint[5-i].torque;
+    }
+  }
+
+  if(cnt_time <= step_time2)
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      joint[i+6].torque = old_joint[i+6].torque*old_trajectory2 + A_R.torque_CTC(i)*new_trajectory2;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < 6; i++)
+    {
       joint[i+6].torque = A_R.torque_CTC(i);
             
-      old_joint[5-i].torque = joint[5-i].torque;
-      old_joint[11-i].torque = joint[11-i].torque;
+      old_joint[i+6].torque = joint[i+6].torque;
     }
   }
 }
@@ -2307,14 +2384,44 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
 {
   if(CONTROL_MODE != IDLE)
   {
-    fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
-    fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", out_joint[0].torque,out_joint[1].torque,out_joint[2].torque,out_joint[3].torque,out_joint[4].torque,out_joint[5].torque);
-    fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", A_L.Des_X(0),A_L.Des_X(1),A_L.Des_X(2),A_L.Des_X(3),A_L.Des_X(4),A_L.Des_X(5));
-    fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos(0),A_L.Foot_Pos(1),A_L.Foot_Pos(2),A_L.Foot_Pos(3),A_L.Foot_Pos(4),A_L.Foot_Pos(5));
-    fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", G_L.Des_X(0),G_L.Des_X(1),G_L.Des_X(2),G_L.Des_X(3),G_L.Des_X(4),G_L.Des_X(5));
-    fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos(0),G_L.Foot_Pos(1),G_L.Foot_Pos(2),G_L.Foot_Pos(3),G_L.Foot_Pos(4),G_L.Foot_Pos(5));
-    fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", O_L.Des_X(0),O_L.Des_X(1),O_L.Des_X(2),O_L.Des_X(3),O_L.Des_X(4),O_L.Des_X(5));
-    fprintf(tmpdata7, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos(0),O_L.Foot_Pos(1),O_L.Foot_Pos(2),O_L.Foot_Pos(3),O_L.Foot_Pos(4),O_L.Foot_Pos(5));        
+
+    cout << "Control Mode Num: " << CONTROL_MODE << endl;
+
+    cout << "------------------------------------------------------" << endl;
+    cout << "|                    Joint Angle                     |" << endl;
+    cout << "------------------------------------------------------" << endl;
+    cout << "Left Pelvis Yaw: " << actual_joint_pos[0]*rad2deg << endl;
+    cout << "Left Pelvis Roll: " << actual_joint_pos[1]*rad2deg << endl;
+    cout << "Left Pelvis Pitch: " << actual_joint_pos[2]*rad2deg << endl;
+    cout << "Left Knee Pitch: " << actual_joint_pos[3]*rad2deg << endl;
+    cout << "Left Ankle Pitch: " << actual_joint_pos[4]*rad2deg << endl;
+    cout << "Left Ankle Roll: " << actual_joint_pos[5]*rad2deg << endl << endl;
+
+    cout << "Right Pelvis Yaw: " << actual_joint_pos[6]*rad2deg << endl;
+    cout << "Right Pelvis Roll: " << actual_joint_pos[7]*rad2deg << endl;
+    cout << "Right Pelvis Pitch: " << actual_joint_pos[8]*rad2deg << endl;
+    cout << "Right Knee Pitch: " << actual_joint_pos[9]*rad2deg << endl;
+    cout << "Right Ankle Pitch: " << actual_joint_pos[10]*rad2deg << endl;
+    cout << "Right Ankle Roll: " << actual_joint_pos[11]*rad2deg << endl << endl;
+
+    cout << "------------------------------------------------------" << endl;
+    cout << "|                    Joint Torque                    |" << endl;
+    cout << "------------------------------------------------------" << endl;
+    cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
+    cout << "Left Pelvis Roll: " << joint[1].torque << endl;
+    cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
+    cout << "Left Knee Pitch: " << joint[3].torque << endl;
+    cout << "Left Ankle Pitch: " << joint[4].torque << endl;
+    cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
+
+    cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
+    cout << "Right Pelvis Roll: " << joint[7].torque << endl;
+    cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
+    cout << "Right Knee Pitch: " << joint[9].torque << endl;
+    cout << "Right Ankle Pitch: " << joint[10].torque << endl;
+    cout << "Right Ankle Roll: " << joint[11].torque << endl << endl;
+
+    cout << "=======================================================" << endl;
   }
 }
 

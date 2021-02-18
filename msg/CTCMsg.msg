@@ -1,4 +1,5 @@
 int32 TF
+float32 stp_time
 float32 L_Des_X_x
 float32 L_Des_X_y
 float32 L_Des_X_z
