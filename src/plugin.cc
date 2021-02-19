@@ -2421,7 +2421,19 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
     cout << "Right Ankle Pitch: " << joint[10].torque << endl;
     cout << "Right Ankle Roll: " << joint[11].torque << endl << endl;
 
-    cout << "=======================================================" << endl;
+    cout << "=====================================================" << endl;
+  }
+
+  if(CONTROL_MODE == ONE_GROUND_CTC_CONTROL)
+  {
+    fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
+    fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", out_joint[0].torque,out_joint[1].torque,out_joint[2].torque,out_joint[3].torque,out_joint[4].torque,out_joint[5].torque);
+    fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", A_L.Des_X(0),A_L.Des_X(1),A_L.Des_X(2),A_L.Des_X(3),A_L.Des_X(4),A_L.Des_X(5));
+    fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos(0),A_L.Foot_Pos(1),A_L.Foot_Pos(2),A_L.Foot_Pos(3),A_L.Foot_Pos(4),A_L.Foot_Pos(5));
+    fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", G_L.Des_X(0),G_L.Des_X(1),G_L.Des_X(2),G_L.Des_X(3),G_L.Des_X(4),G_L.Des_X(5));
+    fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos(0),G_L.Foot_Pos(1),G_L.Foot_Pos(2),G_L.Foot_Pos(3),G_L.Foot_Pos(4),G_L.Foot_Pos(5));
+    fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", O_L.Des_X(0),O_L.Des_X(1),O_L.Des_X(2),O_L.Des_X(3),O_L.Des_X(4),O_L.Des_X(5));
+    fprintf(tmpdata7, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos(0),O_L.Foot_Pos(1),O_L.Foot_Pos(2),O_L.Foot_Pos(3),O_L.Foot_Pos(4),O_L.Foot_Pos(5));    
   }
 }
 
