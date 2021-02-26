@@ -46,6 +46,10 @@ typedef struct Joint_torque
 #define deg2rad		0.017453292519943
 #define rad2deg		57.295779513082323
 
+#define L1 0.25
+#define L2 0.25
+#define L3 0.074
+
 #define inner_dt 0.001
 // ************* 12DOF IK ***********************//
 MatrixXd J_12DOF_T(12,12);
@@ -96,6 +100,8 @@ typedef struct Ground_rbdl_model_
   Body body_FOOT, body_SHANK, body_THIGH, body_PELVIS_1, body_PELVIS_2, body;//make body.
   Joint joint_ANKLE_ROLL, joint_ANKLE_PITCH, joint_KNEE_PITCH, joint_PELVIS_PITCH, joint_PELVIS_ROLL, joint_PELVIS_YAW;//make joint
   Math::Matrix3d bodyI_FOOT, bodyI_SHANK, bodyI_THIGH, bodyI_PELVIS_1, bodyI_PELVIS_2, bodyI;//Inertia of Body
+
+  double pi, theta, psi, prev_pi = 0, prev_theta = 0, prev_psi = 0;
 } G_RBDL;
 
 A_RBDL A_L, A_R;
@@ -1031,8 +1037,6 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(A_RBDL &rbdl)
   rbdl.Foot_Pos(4) = theta;
   rbdl.Foot_Pos(5) = pi;
   rbdl.Foot_Pos_dot = rbdl.A_Jacobian*QDot;
-
-  // cout << rbdl.Foot_Pos << endl << endl;
 }
 
 void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
@@ -1086,11 +1090,18 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(G_RBDL &rbdl)
   Math::Matrix3d R, R_Tmp;
   MatrixNd L_Jacobian, L_Jacobian_tmp, L_Bmatrix;
 
+  MatrixNd Math_Jacobian, Math_A_Jacobian, Math_Inv_A_Jacobian, Math_A_Jacobian_dot;
+
   L_Jacobian = MatrixNd::Zero(6,6);
   L_Jacobian_tmp = MatrixNd::Zero(6,6);
   L_Bmatrix = MatrixNd::Zero(6,6);
+
+  Math_Jacobian = MatrixNd::Zero(6,6);
+  Math_A_Jacobian = MatrixNd::Zero(6,6);
+  Math_Inv_A_Jacobian = MatrixNd::Zero(6,6);
+  Math_A_Jacobian_dot = MatrixNd::Zero(6,6);
   
-  double pi = 0, theta = 0, psi = 0;
+  double pi = 0, theta = 0, psi = 0, piDot = 0, thetaDot = 0, psiDot = 0;
 
   //*********************Left Leg**********************//
   // Get the End Effector's Aixs
@@ -1101,9 +1112,19 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(G_RBDL &rbdl)
   R = R_Tmp.transpose();
 
   // Get the Euler Angle - pi, theta, psi
-  pi = atan2(R(1,0),R(0,0));
-  theta = atan2(-R(2,0), cos(pi)*R(0,0) + sin(pi)*R(1,0));
-  psi = atan2(sin(pi)*R(0,2) - cos(pi)*R(1,2), -sin(pi)*R(0,1) + cos(pi)*R(1,1));
+  rbdl.pi = atan2(R(1,0),R(0,0));
+  rbdl.theta = atan2(-R(2,0), cos(rbdl.pi)*R(0,0) + sin(rbdl.pi)*R(1,0));
+  rbdl.psi = atan2(sin(rbdl.pi)*R(0,2) - cos(rbdl.pi)*R(1,2), -sin(rbdl.pi)*R(0,1) + cos(rbdl.pi)*R(1,1));
+
+  piDot = (rbdl.pi - rbdl.prev_pi) / inner_dt;
+  thetaDot = (rbdl.theta - rbdl.prev_theta) / inner_dt;
+  psiDot = (rbdl.psi - rbdl.prev_psi) / inner_dt;
+
+  rbdl.prev_pi = rbdl.pi;
+  rbdl.prev_theta = rbdl.theta;
+  rbdl.prev_psi = rbdl.psi;
+
+  pi = rbdl.pi; theta = rbdl.theta; psi = rbdl.psi;
 
   // Get the Jacobian
   CalcPointJacobian6D(*rbdl.rbdl_model, rbdl.Q, rbdl.body_id, Math::Vector3d(0, 0, 0), L_Jacobian_tmp, true);
@@ -1121,11 +1142,95 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(G_RBDL &rbdl)
     }
   }
 
+  Math_Jacobian(0,0) = 0;
+  Math_Jacobian(1,0) = -cos(rbdl.Q(0)) * (L1*cos(rbdl.Q(1)) + L2*cos(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4))) + L3*sin(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_Jacobian(2,0) = sin(rbdl.Q(0))*sin(rbdl.Q(1))*((L2+L3*cos(rbdl.Q(3))*cos(rbdl.Q(4)))*sin(rbdl.Q(2)) + L3*cos(rbdl.Q(2))*cos(rbdl.Q(4))*sin(rbdl.Q(3))) - cos(rbdl.Q(1))*sin(rbdl.Q(0))*(L1+cos(rbdl.Q(2))*(L2+L3*cos(rbdl.Q(3))*cos(rbdl.Q(4)))-L3*cos(rbdl.Q(4))*sin(rbdl.Q(2))*sin(rbdl.Q(3))) - L3*cos(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_Jacobian(3,0) = 1;
+  Math_Jacobian(4,0) = 0;
+  Math_Jacobian(5,0) = 0;
+
+  Math_Jacobian(0,1) = L1*cos(rbdl.Q(1)) + L2*cos(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4));
+  Math_Jacobian(1,1) = sin(rbdl.Q(0)) * (L1*sin(rbdl.Q(1)) + L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_Jacobian(2,1) = -cos(rbdl.Q(0)) * (L1*sin(rbdl.Q(1)) + L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_Jacobian(3,1) = 0;
+  Math_Jacobian(4,1) = cos(rbdl.Q(0));
+  Math_Jacobian(5,1) = sin(rbdl.Q(0));
+
+  Math_Jacobian(0,2) = L2*cos(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4));
+  Math_Jacobian(1,2) = sin(rbdl.Q(0)) * (L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_Jacobian(2,2) = -cos(rbdl.Q(0)) * (L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_Jacobian(3,2) = 0;
+  Math_Jacobian(4,2) = cos(rbdl.Q(0));
+  Math_Jacobian(5,2) = sin(rbdl.Q(0));
+
+  Math_Jacobian(0,3) = L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4));
+  Math_Jacobian(1,3) = L3*cos(rbdl.Q(4))*sin(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_Jacobian(2,3) = -L3*cos(rbdl.Q(0))*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_Jacobian(3,3) = 0;
+  Math_Jacobian(4,3) = cos(rbdl.Q(0));
+  Math_Jacobian(5,3) = sin(rbdl.Q(0));
+
+  Math_Jacobian(0,4) = -L3*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(rbdl.Q(4));
+  Math_Jacobian(1,4) = -L3*cos(rbdl.Q(0))*cos(rbdl.Q(4)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_Jacobian(2,4) = -L3*(cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(rbdl.Q(4)));
+  Math_Jacobian(3,4) = cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_Jacobian(4,4) = sin(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_Jacobian(5,4) = -cos(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+
+  Math_Jacobian(0,5) = 0;
+  Math_Jacobian(1,5) = 0;
+  Math_Jacobian(2,5) = 0;
+  Math_Jacobian(3,5) = cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_Jacobian(4,5) = -cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0)) - cos(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_Jacobian(5,5) = cos(rbdl.Q(0))*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4)) - sin(rbdl.Q(0))*sin(rbdl.Q(4));
+
   // Calculate the Analytical Jacobian & Inverse of Analytical Jacobian
   L_Bmatrix << 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, cos(pi)/cos(theta), sin(pi)/cos(theta), 0, 0, 0, 0, -sin(pi), cos(pi), 0, 0, 0, 0, cos(pi)*tan(theta), sin(pi)*tan(theta), 1;
   rbdl.A_Jacobian = L_Bmatrix*L_Jacobian;
   rbdl.Inv_A_Jacobian = rbdl.A_Jacobian.inverse();
 
+  Math_A_Jacobian(0,0) = 0;
+  Math_A_Jacobian(1,0) = -cos(rbdl.Q(0))*(L1*cos(rbdl.Q(1))+L2*cos(rbdl.Q(1)+rbdl.Q(2))+L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4))) + L3*sin(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_A_Jacobian(2,0) = sin(rbdl.Q(0))*sin(rbdl.Q(1))*((L2+L3*cos(rbdl.Q(3))*cos(rbdl.Q(4)))*sin(rbdl.Q(2))+L3*cos(rbdl.Q(2))*cos(rbdl.Q(4))*sin(rbdl.Q(3))) - cos(rbdl.Q(1))*sin(rbdl.Q(0))*(L1+cos(rbdl.Q(2))*(L2+L3*cos(rbdl.Q(3))*cos(rbdl.Q(4))) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(2))*sin(rbdl.Q(3))) - L3*cos(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_A_Jacobian(3,0) = cos(pi)/cos(theta);
+  Math_A_Jacobian(4,0) = -sin(pi);
+  Math_A_Jacobian(5,0) = cos(pi)*tan(theta);
+
+  Math_A_Jacobian(0,1) = L1*cos(rbdl.Q(1)) + L2*cos(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4));
+  Math_A_Jacobian(1,1) = sin(rbdl.Q(0)) * (L1*sin(rbdl.Q(1)) + L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_A_Jacobian(2,1) = -cos(rbdl.Q(0)) * (L1*sin(rbdl.Q(1)) + L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_A_Jacobian(3,1) = cos(rbdl.Q(0))*sin(pi)/cos(theta);
+  Math_A_Jacobian(4,1) = cos(pi)*cos(rbdl.Q(0));
+  Math_A_Jacobian(5,1) = sin(rbdl.Q(0)) + cos(rbdl.Q(0))*sin(pi)*tan(theta);
+
+  Math_A_Jacobian(0,2) = L2*cos(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4));
+  Math_A_Jacobian(1,2) = sin(rbdl.Q(0)) * (L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_A_Jacobian(2,2) = -cos(rbdl.Q(0)) * (L2*sin(rbdl.Q(1)+rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)));
+  Math_A_Jacobian(3,2) = cos(rbdl.Q(0))*sin(pi)/cos(theta);
+  Math_A_Jacobian(4,2) = cos(pi)*cos(rbdl.Q(0));
+  Math_A_Jacobian(5,2) = sin(rbdl.Q(0))+cos(rbdl.Q(0))*sin(pi)*tan(theta);
+
+  Math_A_Jacobian(0,3) = L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4));
+  Math_A_Jacobian(1,3) = L3*cos(rbdl.Q(4))*sin(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_A_Jacobian(2,3) = -L3*cos(rbdl.Q(0))*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_A_Jacobian(3,3) = cos(rbdl.Q(0))*sin(pi)/cos(theta);
+  Math_A_Jacobian(4,3) = cos(pi)*cos(rbdl.Q(0));
+  Math_A_Jacobian(5,3) = sin(rbdl.Q(0))+cos(rbdl.Q(0))*sin(pi)*tan(theta);
+
+  Math_A_Jacobian(0,4) = -L3*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(rbdl.Q(4));
+  Math_A_Jacobian(1,4) = -L3*cos(rbdl.Q(0))*cos(rbdl.Q(4)) + L3*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(rbdl.Q(0))*sin(rbdl.Q(4));
+  Math_A_Jacobian(2,4) = -L3*(cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(rbdl.Q(4)));
+  Math_A_Jacobian(3,4) = (cos(pi)*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))+sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)))/cos(theta);
+  Math_A_Jacobian(4,4) = -cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*sin(pi) + cos(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3));
+  Math_A_Jacobian(5,4) = -cos(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)) + (cos(pi)*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)) + sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)))*tan(theta);
+
+  Math_A_Jacobian(0,5) = 0;
+  Math_A_Jacobian(1,5) = 0;
+  Math_A_Jacobian(2,5) = 0;
+  Math_A_Jacobian(3,5) = -(cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4))*sin(pi)*sin(rbdl.Q(0)) - cos(pi)*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)) + cos(rbdl.Q(0))*sin(pi)*sin(rbdl.Q(4)))/cos(theta);
+  Math_A_Jacobian(4,5) = -cos(rbdl.Q(4))*sin(pi)*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3)) - cos(pi)*(cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*sin(rbdl.Q(4)));
+  Math_A_Jacobian(5,5) = cos(rbdl.Q(0))*cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4)) - sin(rbdl.Q(0))*sin(rbdl.Q(4)) + cos(pi)*cos(rbdl.Q(4))*sin(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*tan(theta) - sin(pi)*(cos(rbdl.Q(1)+rbdl.Q(2)+rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*sin(rbdl.Q(4)))*tan(theta);
+  
   // Calculate the Jacobian dot
   for(int i = 0; i < 6; i++)
   {
@@ -1136,29 +1241,77 @@ void gazebo::SUBO3_plugin::Calc_Feedback_Pos(G_RBDL &rbdl)
     }
   }
 
+  Math_A_Jacobian_dot(0,0) = 0;
+  Math_A_Jacobian_dot(0,1) = -(L1*sin(rbdl.Q(1))*rbdl.QDot(1)) - L2*sin(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2)) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4);
+  Math_A_Jacobian_dot(0,2) = -(L2*sin(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2))) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4);
+  Math_A_Jacobian_dot(0,3) = -(L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3))) - L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4);
+  Math_A_Jacobian_dot(0,4) = -(L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3))) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(4);
+  Math_A_Jacobian_dot(0,5) = 0;
+
+  Math_A_Jacobian_dot(1,0) = (L1*cos(rbdl.Q(1)) + L2*cos(rbdl.Q(1) + rbdl.Q(2)) + L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4)))*sin(rbdl.Q(0))*rbdl.QDot(0) + L3*cos(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(0))*rbdl.QDot(4) - cos(rbdl.Q(0))*(-(L1*sin(rbdl.Q(1))*rbdl.QDot(1)) - L2*sin(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2)) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(1,1) = cos(rbdl.Q(0))*(L1*sin(rbdl.Q(1)) + L2*sin(rbdl.Q(1) + rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*rbdl.QDot(0) + sin(rbdl.Q(0))*(L1*cos(rbdl.Q(1))*rbdl.QDot(1) + L2*cos(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2)) + L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(1,2) = cos(rbdl.Q(0))*(L2*sin(rbdl.Q(1) + rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*rbdl.QDot(0) + sin(rbdl.Q(0))*(L2*cos(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2)) + L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(1,3) = L3*(cos(rbdl.Q(0))*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(0) + cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(1,4) = L3*(cos(rbdl.Q(4))*sin(rbdl.Q(0))*rbdl.QDot(0) + cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(0) - sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0))*rbdl.QDot(4) + cos(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(1,5) = 0;
+
+  Math_A_Jacobian_dot(2,0) = cos(rbdl.Q(0))*sin(rbdl.Q(1))*((L2 + L3*cos(rbdl.Q(3))*cos(rbdl.Q(4)))*sin(rbdl.Q(2)) + L3*cos(rbdl.Q(2))*cos(rbdl.Q(4))*sin(rbdl.Q(3)))*rbdl.QDot(0) - cos(rbdl.Q(0))*cos(rbdl.Q(1))*(L1 + cos(rbdl.Q(2))*(L2 + L3*cos(rbdl.Q(3))*cos(rbdl.Q(4))) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(2))*sin(rbdl.Q(3)))*rbdl.QDot(0) + L3*sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) + cos(rbdl.Q(1))*sin(rbdl.Q(0))*((L2 + L3*cos(rbdl.Q(3))*cos(rbdl.Q(4)))*sin(rbdl.Q(2)) + L3*cos(rbdl.Q(2))*cos(rbdl.Q(4))*sin(rbdl.Q(3)))*rbdl.QDot(1) + sin(rbdl.Q(0))*sin(rbdl.Q(1))*(L1 + cos(rbdl.Q(2))*(L2 + L3*cos(rbdl.Q(3))*cos(rbdl.Q(4))) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(2))*sin(rbdl.Q(3)))*rbdl.QDot(1) - L3*cos(rbdl.Q(0))*cos(rbdl.Q(4))*rbdl.QDot(4) + cos(rbdl.Q(1))*sin(rbdl.Q(0))*(((L2 + L3*cos(rbdl.Q(3))*cos(rbdl.Q(4)))*sin(rbdl.Q(2)) + L3*cos(rbdl.Q(2))*cos(rbdl.Q(4))*sin(rbdl.Q(3)))*rbdl.QDot(2) + L3*(cos(rbdl.Q(4))*sin(rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(3) + cos(rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4))) + sin(rbdl.Q(0))*sin(rbdl.Q(1))*((cos(rbdl.Q(2))*(L2 + L3*cos(rbdl.Q(3))*cos(rbdl.Q(4))) - L3*cos(rbdl.Q(4))*sin(rbdl.Q(2))*sin(rbdl.Q(3)))*rbdl.QDot(2) + L3*(cos(rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*rbdl.QDot(3) - sin(rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4)));
+  Math_A_Jacobian_dot(2,1) = sin(rbdl.Q(0))*(L1*sin(rbdl.Q(1)) + L2*sin(rbdl.Q(1) + rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*rbdl.QDot(0) - cos(rbdl.Q(0))*(L1*cos(rbdl.Q(1))*rbdl.QDot(1) + L2*cos(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2)) + L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(2,2) = sin(rbdl.Q(0))*(L2*sin(rbdl.Q(1) + rbdl.Q(2)) + L3*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*rbdl.QDot(0) - cos(rbdl.Q(0))*(L2*cos(rbdl.Q(1) + rbdl.Q(2))*(rbdl.QDot(1) + rbdl.QDot(2)) + L3*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - L3*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(2,3) = L3*(cos(rbdl.Q(4))*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(0) - cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  Math_A_Jacobian_dot(2,4) = -(L3*(cos(rbdl.Q(0))*cos(rbdl.Q(4))*rbdl.QDot(0) - cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) - cos(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*rbdl.QDot(4) - sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(4)));
+  Math_A_Jacobian_dot(2,5) = 0;
+
+  Math_A_Jacobian_dot(3,0) = (-(sin(pi)*piDot) + cos(pi)*tan(theta)*thetaDot)/cos(theta);
+  Math_A_Jacobian_dot(3,1) = (cos(pi)*cos(rbdl.Q(0))*piDot + sin(pi)*(-(sin(rbdl.Q(0))*rbdl.QDot(0)) + cos(rbdl.Q(0))*tan(theta)*thetaDot))/cos(theta);
+  Math_A_Jacobian_dot(3,2) = (cos(pi)*cos(rbdl.Q(0))*piDot + sin(pi)*(-(sin(rbdl.Q(0))*rbdl.QDot(0)) + cos(rbdl.Q(0))*tan(theta)*thetaDot))/cos(theta);
+  Math_A_Jacobian_dot(3,3) = (cos(pi)*cos(rbdl.Q(0))*piDot + sin(pi)*(-(sin(rbdl.Q(0))*rbdl.QDot(0)) + cos(rbdl.Q(0))*tan(theta)*thetaDot))/cos(theta);
+  Math_A_Jacobian_dot(3,4) = (-(cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(pi)*piDot) + cos(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*piDot + cos(rbdl.Q(0))*sin(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(0) + cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(pi)*sin(rbdl.Q(0))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - cos(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + (cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)) + sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*tan(theta)*thetaDot)/cos(theta);
+  Math_A_Jacobian_dot(3,5) = (-(cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0))*piDot) - cos(rbdl.Q(4))*sin(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*piDot - cos(pi)*cos(rbdl.Q(0))*sin(rbdl.Q(4))*piDot - cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(pi)*rbdl.QDot(0) + sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) + cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(rbdl.Q(4))*sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - cos(rbdl.Q(0))*cos(rbdl.Q(4))*sin(pi)*rbdl.QDot(4) + cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(4) - cos(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4) - (cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(pi)*sin(rbdl.Q(0)) - cos(pi)*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)) + cos(rbdl.Q(0))*sin(pi)*sin(rbdl.Q(4)))*tan(theta)*thetaDot)/cos(theta);
+
+  Math_A_Jacobian_dot(4,0) = -(cos(pi)*piDot);
+  Math_A_Jacobian_dot(4,1) = -(cos(rbdl.Q(0))*sin(pi)*piDot) - cos(pi)*sin(rbdl.Q(0))*rbdl.QDot(0);
+  Math_A_Jacobian_dot(4,2) = -(cos(rbdl.Q(0))*sin(pi)*piDot) - cos(pi)*sin(rbdl.Q(0))*rbdl.QDot(0);
+  Math_A_Jacobian_dot(4,3) = -(cos(rbdl.Q(0))*sin(pi)*piDot) - cos(pi)*sin(rbdl.Q(0))*rbdl.QDot(0);
+  Math_A_Jacobian_dot(4,4) = -((cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)) + sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*piDot) + cos(pi)*cos(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(0) + (cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(0)) + sin(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3));
+  Math_A_Jacobian_dot(4,5) = -(cos(pi)*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*piDot) + sin(pi)*(cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*sin(rbdl.Q(4)))*piDot - cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(pi)*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + sin(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4) - cos(pi)*(cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*rbdl.QDot(0) - sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) - cos(rbdl.Q(4))*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(rbdl.Q(0))*cos(rbdl.Q(4))*rbdl.QDot(4) - cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(4));
+  
+  Math_A_Jacobian_dot(5,0) = -(sin(pi)*tan(theta)*piDot) + cos(pi)*thetaDot/(cos(theta)*cos(theta));
+  Math_A_Jacobian_dot(5,1) = cos(pi)*cos(rbdl.Q(0))*tan(theta)*piDot + (cos(rbdl.Q(0)) - sin(pi)*sin(rbdl.Q(0))*tan(theta))*rbdl.QDot(0) + cos(rbdl.Q(0))*sin(pi)*thetaDot/(cos(theta)*cos(theta));
+  Math_A_Jacobian_dot(5,2) = cos(pi)*cos(rbdl.Q(0))*tan(theta)*piDot + (cos(rbdl.Q(0)) - sin(pi)*sin(rbdl.Q(0))*tan(theta))*rbdl.QDot(0) + cos(rbdl.Q(0))*sin(pi)*thetaDot/(cos(theta)*cos(theta));
+  Math_A_Jacobian_dot(5,3) = cos(pi)*cos(rbdl.Q(0))*tan(theta)*piDot + (cos(rbdl.Q(0)) - sin(pi)*sin(rbdl.Q(0))*tan(theta))*rbdl.QDot(0) + cos(rbdl.Q(0))*sin(pi)*thetaDot/(cos(theta)*cos(theta));
+  Math_A_Jacobian_dot(5,4) = sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(0) - cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + tan(theta)*((-(cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(pi)) + cos(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*piDot + cos(rbdl.Q(0))*sin(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*rbdl.QDot(0) + (cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(pi)*sin(rbdl.Q(0)) - cos(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3))) + (cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)) + sin(pi)*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3)))*thetaDot/(cos(theta)*cos(theta));
+  Math_A_Jacobian_dot(5,5) = -(cos(rbdl.Q(4))*sin(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*tan(theta)*piDot) - cos(pi)*(cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*sin(rbdl.Q(4)))*tan(theta)*piDot - cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0))*rbdl.QDot(0) - cos(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) - cos(rbdl.Q(0))*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(pi)*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*tan(theta)*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) - cos(rbdl.Q(4))*sin(rbdl.Q(0))*rbdl.QDot(4) - cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*rbdl.QDot(4) - cos(pi)*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(4))*tan(theta)*rbdl.QDot(4) - sin(pi)*tan(theta)*(cos(rbdl.Q(0))*cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*rbdl.QDot(0) - sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(0) - cos(rbdl.Q(4))*sin(rbdl.Q(0))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*(rbdl.QDot(1) + rbdl.QDot(2) + rbdl.QDot(3)) + cos(rbdl.Q(0))*cos(rbdl.Q(4))*rbdl.QDot(4) - cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*sin(rbdl.Q(0))*sin(rbdl.Q(4))*rbdl.QDot(4)) + cos(pi)*cos(rbdl.Q(4))*sin(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*thetaDot/(cos(theta)*cos(theta)) - sin(pi)*(cos(rbdl.Q(1) + rbdl.Q(2) + rbdl.Q(3))*cos(rbdl.Q(4))*sin(rbdl.Q(0)) + cos(rbdl.Q(0))*sin(rbdl.Q(4)))*thetaDot/(cos(theta)*cos(theta));
+
+  Math_Inv_A_Jacobian = Math_A_Jacobian.inverse();
+
+  // rbdl.A_Jacobian = Math_A_Jacobian;
+  // rbdl.Inv_A_Jacobian = rbdl.A_Jacobian.inverse();
+  // rbdl.A_Jacobian_dot = Math_A_Jacobian_dot;
+
   // Current Pos & Pos_dot
   rbdl.Foot_Pos(0) = Body_Pos(0);
   rbdl.Foot_Pos(1) = Body_Pos(1);
   rbdl.Foot_Pos(2) = Body_Pos(2);
-  rbdl.Foot_Pos(3) = psi;
-  rbdl.Foot_Pos(4) = theta;
-  rbdl.Foot_Pos(5) = pi;
+  rbdl.Foot_Pos(3) = rbdl.psi;
+  rbdl.Foot_Pos(4) = rbdl.theta;
+  rbdl.Foot_Pos(5) = rbdl.pi;
   rbdl.Foot_Pos_dot = rbdl.A_Jacobian*rbdl.QDot;
-
-  // cout << rbdl.Foot_Pos << endl << endl;
-  // cout << "=======================" << endl;
 }
 
 void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 {
   if(rbdl.num_leg == 0)
-{
-    rbdl.Kp << 15000, 15000, 100000, 1000, 1000, 1000;
-    rbdl.Kv << 0, 0, 0, 0, 0, 0;
+  {
+    rbdl.Kp << 1000, 3000, 5000, 500, 1000, 500;
+    rbdl.Kv << 1, 1, 1, 0, 0, 0;
   }
   else if(rbdl.num_leg == 1)
   {
-    rbdl.Kp << 18000, 15000, 30000, 3000, 3000, 3000;
+    // rbdl.Kp << 1000, 3000, 5000, 3000, 500, 500;
+    // rbdl.Kv << 1, 1, 1, 1, 1, 1;
+    
+    rbdl.Kp << 15000, 15000, 30000, 3000, 3000, 3000;
     rbdl.Kv << 1, 1, 1, 0, 0, 0;
   }
 
@@ -1325,7 +1478,7 @@ void gazebo::SUBO3_plugin::jointController()
     cout << "Break Joint Num: " << 9 << endl;
   }
 
-  //* Applying torques
+  //Applying torques
   this->L_PELVIS_YAW_JOINT->SetForce(2, joint[0].torque); //SUBO3.target_tor[0]);
   this->L_PELVIS_ROLL_JOINT->SetForce(0, joint[1].torque); //SUBO3.target_tor[1]);
   this->L_PELVIS_PITCH_JOINT->SetForce(1, joint[2].torque); //SUBO3.target_tor[2]);
@@ -1730,13 +1883,7 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()  // 0
     
     old_joint[i].torque = joint[i].torque;
     old_joint[i+6].torque = joint[i+6].torque;
-
-    // cout << actual_joint_pos[i] << endl;
   }
-  // cout << endl;
-
-  // Calc_Feedback_Pos(A_L);  // calculate the feedback
-  // Calc_Feedback_Pos(O_L);  // calculate the feedback
 }
 
 void gazebo::SUBO3_plugin::Init_Pos_Traj2()  // 1
@@ -1751,34 +1898,34 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj2()  // 1
 
   if(cnt_time <= step_time)
   {
-    // Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
-    // Theo_RL_th[1] = 0*Init_trajectory*deg2rad;
-    // Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
-    // Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
-    // Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
-    // Theo_RL_th[5] = 0*Init_trajectory*deg2rad;
-
-    // Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
-    // Theo_LL_th[1] = 0*Init_trajectory*deg2rad;
-    // Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
-    // Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
-    // Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
-    // Theo_LL_th[5] = 0*Init_trajectory*deg2rad;
-
-    //one leg
     Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
-    Theo_RL_th[1] = -10*Init_trajectory*deg2rad;
+    Theo_RL_th[1] = 0*Init_trajectory*deg2rad;
     Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
     Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
     Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
-    Theo_RL_th[5] = 10*Init_trajectory*deg2rad;
+    Theo_RL_th[5] = 0*Init_trajectory*deg2rad;
 
     Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
-    Theo_LL_th[1] = -10*Init_trajectory*deg2rad;
+    Theo_LL_th[1] = 0*Init_trajectory*deg2rad;
     Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
     Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
     Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
-    Theo_LL_th[5] = 10*Init_trajectory*deg2rad;
+    Theo_LL_th[5] = 0*Init_trajectory*deg2rad;
+
+    //one leg
+    // Theo_RL_th[0] = 0*Init_trajectory*deg2rad;
+    // Theo_RL_th[1] = -10*Init_trajectory*deg2rad;
+    // Theo_RL_th[2] = -30*Init_trajectory*deg2rad;
+    // Theo_RL_th[3] = 60*Init_trajectory*deg2rad;
+    // Theo_RL_th[4] = -30*Init_trajectory*deg2rad;
+    // Theo_RL_th[5] = 10*Init_trajectory*deg2rad;
+
+    // Theo_LL_th[0] = 0*Init_trajectory*deg2rad;
+    // Theo_LL_th[1] = -10*Init_trajectory*deg2rad;
+    // Theo_LL_th[2] = -30*Init_trajectory*deg2rad;
+    // Theo_LL_th[3] = 60*Init_trajectory*deg2rad;
+    // Theo_LL_th[4] = -30*Init_trajectory*deg2rad;
+    // Theo_LL_th[5] = 10*Init_trajectory*deg2rad;
   }
   
   ///////////////토크 입력////////////////
@@ -1789,9 +1936,6 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj2()  // 1
     old_joint[i].torque = joint[i].torque;
     old_joint[i+6].torque = joint[i+6].torque;
   }
-
-  Calc_Feedback_Pos(A_R);  // calculate the feedback
-  Calc_Feedback_Pos(O_L);  // calculate the feedback
 }
 
 void gazebo::SUBO3_plugin::Gravity_Cont() // 2
@@ -2340,8 +2484,8 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 9
 
 void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 10
 {
-  step_time = 0.5; //주기설정 (초) 변수
-  step_time2 = 0.5;
+  step_time = 2; //주기설정 (초) 변수
+  step_time2 = 2;
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
@@ -2436,6 +2580,15 @@ void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control_Pos() // 11
     O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
 
     O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+
+    G_L.New_Des_X << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    chg_cnt = 0;
   }
   else if(start_flag == 1)
   {
@@ -2504,7 +2657,6 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
 {
   if(CONTROL_MODE != IDLE)
   {
-
     cout << "Control Mode Num: " << CONTROL_MODE << endl;
 
     cout << "------------------------------------------------------" << endl;
@@ -2544,17 +2696,9 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
     cout << "=====================================================" << endl;
   }
 
-  // if(CONTROL_MODE == ONE_GROUND_CTC_CONTROL)
-  // {
-  //   fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
-  //   fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", out_joint[0].torque,out_joint[1].torque,out_joint[2].torque,out_joint[3].torque,out_joint[4].torque,out_joint[5].torque);
-  //   fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", A_L.Des_X(0),A_L.Des_X(1),A_L.Des_X(2),A_L.Des_X(3),A_L.Des_X(4),A_L.Des_X(5));
-  //   fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos(0),A_L.Foot_Pos(1),A_L.Foot_Pos(2),A_L.Foot_Pos(3),A_L.Foot_Pos(4),A_L.Foot_Pos(5));
-  //   fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", G_L.Des_X(0),G_L.Des_X(1),G_L.Des_X(2),G_L.Des_X(3),G_L.Des_X(4),G_L.Des_X(5));
-  //   fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos(0),G_L.Foot_Pos(1),G_L.Foot_Pos(2),G_L.Foot_Pos(3),G_L.Foot_Pos(4),G_L.Foot_Pos(5));
-  //   fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", O_L.Des_X(0),O_L.Des_X(1),O_L.Des_X(2),O_L.Des_X(3),O_L.Des_X(4),O_L.Des_X(5));
-  //   fprintf(tmpdata7, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos(0),O_L.Foot_Pos(1),O_L.Foot_Pos(2),O_L.Foot_Pos(3),O_L.Foot_Pos(4),O_L.Foot_Pos(5));    
-  // }
+  fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
+  fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", G_L.Q(5),G_L.Q(4),G_L.Q(3),G_L.Q(2),G_L.Q(1),G_L.Q(0));
+  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", G_L.QDot(5),G_L.QDot(4),G_L.QDot(3),G_L.QDot(2),G_L.QDot(1),G_L.QDot(0));
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
