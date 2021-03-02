@@ -7,6 +7,14 @@
         "cmath": "cpp",
         "complex": "cpp",
         "ostream": "cpp",
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "mprealsupport": "cpp",
+        "bitset": "cpp",
+        "array": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "initializer_list": "cpp",
+        "utility": "cpp",
+        "valarray": "cpp"
     }
 }
