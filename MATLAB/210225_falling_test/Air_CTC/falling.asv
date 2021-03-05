@@ -1,9 +1,0 @@
-clc; close all; clear all;
-
-torque = readmatrix("tmpdata0.txt");
-Q = readmatrix("tmpdata1.txt");
-QDot = readmatrix("tmpdata2.txt");
-
-S = min([length(joint_torque),length(out_joint_torque),length(A_L_Des_X),length(A_L_Foot_Pos),length(G_L_Des_X),length(G_L_Foot_Pos),length(O_L_Des_X),length(O_L_Foot_Pos)]);
-
-time = 

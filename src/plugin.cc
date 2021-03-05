@@ -58,6 +58,8 @@ int arr_flag = 0;
 // ***************행렬 선언*********************//
 double Theo_RL_th[6] = {0.,0.,0.,0.,0.,0.}, Theo_LL_th[6] = {0.,0.,0.,0.,0.,0.};
 double Act_RL_th[6] = {0.,0.,0.,0.,0.,0.}, Act_LL_th[6] = {0.,0.,0.,0.,0.,0.};
+double left_torque[12] = {0,};
+double right_torque[12] = {0,};
 //*************** Trajectroy Variables**************//    
 double step_time = 0;
 double step_time2 = 0;
@@ -200,6 +202,9 @@ namespace gazebo
 
     // *************IMU sensor variables ****************//
     math::Pose base_info;
+    math::Pose left_info;
+    math::Pose right_info;
+
     sensors::SensorPtr Sensor;
 
     sensors::ImuSensorPtr BODY_IMU;
@@ -224,6 +229,7 @@ namespace gazebo
     VectorXd L_Force_I = VectorXd::Zero(3);
     VectorXd R_Force_I = VectorXd::Zero(3);
 
+    double zmp_factor;
     // ************* ROS Communication ****************//
     ros::NodeHandle n;
 	  // ************* publisher ************************//
@@ -351,6 +357,7 @@ namespace gazebo
     void Calc_CTC_Torque(A_RBDL &rbdl);
     void Calc_Feedback_Pos(G_RBDL &rbdl);
     void Calc_CTC_Torque(G_RBDL &rbdl);
+    void Calc_ZMP();
     void Init_Pos_Traj();
     void Init_Pos_Traj2();
     void Gravity_Cont();
@@ -367,14 +374,14 @@ namespace gazebo
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
 
-    // FILE* tmpdata0=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata0.txt","w");
-    // FILE* tmpdata1=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata1.txt","w");
-    // FILE* tmpdata2=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata2.txt","w");
-    // FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
-    // FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
-    // FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
-    // FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
-    // FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    FILE* tmpdata0=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata0.txt","w");
+    FILE* tmpdata1=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata1.txt","w");
+    FILE* tmpdata2=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata2.txt","w");
+    FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
+    FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
+    FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
+    FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
+    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
 
     void Print(void); //Print function
   };
@@ -884,6 +891,8 @@ void gazebo::SUBO3_plugin::SensorSetting()
 void gazebo::SUBO3_plugin::IMUSensorRead()
 {
   base_info = this->model->GetWorldPose();
+  left_info = this->L_FOOTPAD_LINK->GetWorldPose();
+  right_info = this->R_FOOTPAD_LINK->GetWorldPose();
 
   body_quat = this->BODY_IMU->Orientation();
   L_foot_quat = this->L_IMU->Orientation();
@@ -1029,10 +1038,13 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
 {
   VectorNd QDot;
   QDot = VectorNd::Zero(6);
-
-  rbdl.Kp << 4000, 4000, 15000, 4000, 15000, 4000;
-  rbdl.Kv << 100, 100, 250, 100, 250, 100;
-
+  
+  if(start_flag == 0)
+  {
+    rbdl.Kp << 4000, 4000, 15000, 4000, 15000, 4000;
+    rbdl.Kv << 100, 100, 250, 100, 250, 100;
+  }
+  
   //*********************Left Leg**********************//
   VectorNd X_CTC;
   X_CTC = VectorNd::Zero(6);
@@ -1157,16 +1169,16 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 
   if(rbdl.num_leg == 0)
   {
-    rbdl.Kp << 1000, 3000, 5000, 3000, 1000, 500;
+    rbdl.Kp << 3000, 3000, 5000, 5000, 3000, 500;
     rbdl.Kv << 1, 1, 1, 1, 1, 1;
   }
   else if(rbdl.num_leg == 1)
   {
-    // rbdl.Kp << 1000, 3000, 5000, 3000, 500, 500;
-    // rbdl.Kv << 1, 1, 1, 1, 1, 1;
+    rbdl.Kp << 3000, 3000, 5000, 5000, 3000, 500;
+    rbdl.Kv << 1, 1, 1, 1, 1, 1;
     
-    rbdl.Kp << 15000, 15000, 30000, 3000, 3000, 3000;
-    rbdl.Kv << 1, 1, 1, 0, 0, 0;
+    // rbdl.Kp << 15000, 15000, 30000, 3000, 3000, 3000;
+    // rbdl.Kv << 1, 1, 1, 0, 0, 0;
   }
 
   //*********************Left Leg**********************//
@@ -1204,6 +1216,37 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
   }
 
   rbdl.torque_CTC = I_Matrix * q_CTC + NE_Tau;
+}
+
+void gazebo::SUBO3_plugin::Calc_ZMP()
+{
+  // Math::Vector3d Left_Foot_Pos, Right_Foot_Pos;
+  double X_L0, Y_L0, X_R0, Y_R0, X_ZMP, Y_ZMP, Y_ZMP_point, L_total, L_half, L_zmp;
+
+  X_L0 = left_info.pos[0] - 0;
+  Y_L0 = left_info.pos[1] - 0;
+
+  X_R0 = right_info.pos[0] - 0;
+  Y_R0 = right_info.pos[1] - 0;
+
+  X_ZMP = ((X_R0*R_Force_E[2] + R_Torque_E[1]) + (X_L0*L_Force_E[2] + L_Torque_E[1])) / (R_Force_E[2] + L_Force_E[2]);
+  Y_ZMP = ((Y_R0*R_Force_E[2] + R_Torque_E[0]) + (Y_L0*L_Force_E[2] + L_Torque_E[0])) / (R_Force_E[2] + L_Force_E[2]);
+
+  Y_ZMP_point = (Y_L0 + Y_R0) / 2;
+
+  L_total = (Y_L0) - (Y_R0);
+  // L_total = (Y_L0 - 0.05) - (Y_R0 + 0.05);
+
+  L_half = L_total / 2;
+  L_zmp = Y_ZMP - Y_ZMP_point;
+
+  zmp_factor = L_zmp/L_half;
+
+  if(zmp_factor <= -1) zmp_factor = -1;
+  else if(zmp_factor >= 1) zmp_factor = 1;
+
+  fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", X_L0, Y_L0, X_R0, Y_R0, X_ZMP, Y_ZMP, Y_ZMP_point, L_total, L_half, L_zmp, zmp_factor);
+  fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Force_E[2], R_Force_E[2], L_Torque_E[0], L_Torque_E[1], R_Torque_E[0], R_Torque_E[1]);
 }
 
 void gazebo::SUBO3_plugin::torque_interpolation()
@@ -1597,6 +1640,8 @@ void gazebo::SUBO3_plugin::PostureGeneration()
 void gazebo::SUBO3_plugin::RBDL_variable_update()
 {
   // Air variable
+  A_L.Q(0) = -body_quat.Euler()[1];
+  A_L.Q(1) = -body_quat.Euler()[0];
   A_L.Q(3) = actual_joint_pos[0];
   A_L.Q(4) = actual_joint_pos[1];
   A_L.Q(5) = actual_joint_pos[2];
@@ -1604,6 +1649,8 @@ void gazebo::SUBO3_plugin::RBDL_variable_update()
   A_L.Q(7) = actual_joint_pos[4];
   A_L.Q(8) = actual_joint_pos[5];
   
+  A_R.Q(0) = -body_quat.Euler()[1];
+  A_R.Q(1) = -body_quat.Euler()[0];
   A_R.Q(3) = actual_joint_pos[6];
   A_R.Q(4) = actual_joint_pos[7];
   A_R.Q(5) = actual_joint_pos[8];
@@ -2057,161 +2104,150 @@ void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 6
 
 void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
 {
-  step_time = 1; //주기설정 (초) 변수 
+  step_time = 1; //주기설정 (초) 변수
+  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+  
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
-  if(L_Force_E[2] >= 5)
+  //*****************Target Pos, Pos Dot, Pos DDot*****************//
+  // Pelvis CTC
+  A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+  A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
+  A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
+
+  A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+  A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
+  A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
+  
+  // Foot CTC
+  G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.509;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+  G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
+  G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+
+  G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.509;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+  G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
+  G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+  
+  // One Foot CTC
+  O_L.Des_X(0) = 0;  O_L.Des_X(1) = 0;  O_L.Des_X(2) = 0.509;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
+  O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
+  O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
+
+  O_R.Des_X(0) = 0;  O_R.Des_X(1) = 0;  O_R.Des_X(2) = 0.509;  O_R.Des_X(3) = 0;  O_R.Des_X(4) = 0;  O_R.Des_X(5) = 0;
+  O_R.Des_XDot(0) = 0;  O_R.Des_XDot(1) = 0;  O_R.Des_XDot(2) = 0;  O_R.Des_XDot(3) = 0;  O_R.Des_XDot(4) = 0;  O_R.Des_XDot(5) = 0;
+  O_R.Des_XDDot(0) = 0;  O_R.Des_XDDot(1) = 0;  O_R.Des_XDDot(2) = 0;  O_R.Des_XDDot(3) = 0;  O_R.Des_XDDot(4) = 0;  O_R.Des_XDDot(5) = 0;
+
+  // cout << "zmp_factor: " << zmp_factor << endl;
+  // cout << "base_info: " << base_info << endl << endl;
+
+  Calc_ZMP();
+
+  if(zmp_factor >= 0) // slope to left
   {
-    left_cnt2 = 0;
-    left_cnt1++;
-    
-    double left_time = left_cnt1*inner_dt;
-    double old_trajectory = 0.5*(cos(PI*(left_time/step_time)));
-    double new_trajectory = 0.5*(1-cos(PI*(left_time/step_time)));
+    plot_cnt = 1;
 
-    // Target Pos, Pos Dot, Pos DDot
-    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.509;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
-    G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
-    G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
-
-    Calc_Feedback_Pos(G_L);  // calculate the feedback
-    Calc_CTC_Torque(G_L);    // calculate the CTC torque
-
-    if(left_time <= step_time)
-    {
-      for (int i = 0; i < 6; i++)
-      {
-        joint[5-i].torque = old_joint[5-i].torque*old_trajectory - G_L.torque_CTC(i)*new_trajectory;
-      }
-    }
-    else
-    {
-      for (int i = 0; i < 6; i++)
-      {
-        joint[5-i].torque = -G_L.torque_CTC(i);
-        old_joint[5-i].torque = joint[5-i].torque;
-      }
-    }
-  }
-  else
-  {
-    left_cnt1 = 0;
-    // left_cnt2++;
-
-    // double left_time = left_cnt2*inner_dt;
-    // double old_trajectory = 0.5*(cos(PI*(left_time/step_time)));
-    // double new_trajectory = 0.5*(1-cos(PI*(left_time/step_time)));
-
-    // // Target Pos, Pos Dot, Pos DDot
-    // A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = -body_quat.Euler()[1];  A_L.Des_X(4) = -body_quat.Euler()[0];  A_L.Des_X(5) = 0;
-    // A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
-    // A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
-
-    // Calc_Feedback_Pos(A_L);  // calculate the feedback
-    // Calc_CTC_Torque(A_L);    // calculate the CTC torque
-
-    // if(left_time <= step_time)
-    // {
-    //   for (int i = 0; i < 6; i++)
-    //   {
-    //     joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
-    //   }
-    // }
-    // else
-    // {
-    //   for (int i = 0; i < 6; i++)
-    //   {
-    //     joint[i].torque = A_L.torque_CTC(i);
-    //     old_joint[i].torque = joint[i].torque;
-    //   }
-    // }
-
-    A_L.Q(0) = -A_L.Q(0);
-    A_L.Q(1) = -A_L.Q(1);
-
-    InverseDynamics(*A_L.rbdl_model, A_L.Q, VectorNd::Zero(9), VectorNd::Zero(9), A_L.Tau, NULL);
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i+6].torque = A_L.Tau(i+3);
-      old_joint[i+6].torque = joint[i+6].torque;
-    }
-  }
-
-  if(R_Force_E[2] >= 5)
-  {
-    right_cnt2 = 0;
-    right_cnt1++;
-
-    double right_time = right_cnt1*inner_dt;
-    double old_trajectory = 0.5*(cos(PI*(right_time/step_time)));
-    double new_trajectory = 0.5*(1-cos(PI*(right_time/step_time)));
-
-    // Target Pos, Pos Dot, Pos DDot
-    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.509;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
-    G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
-    G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+    Calc_Feedback_Pos(A_R);  // calculate the feedback
+    Calc_CTC_Torque(A_R);    // calculate the CTC torque
 
     Calc_Feedback_Pos(G_R);  // calculate the feedback
     Calc_CTC_Torque(G_R);    // calculate the CTC torque
 
-    if(right_time <= step_time)
+    Calc_Feedback_Pos(G_L);  // calculate the feedback
+    Calc_CTC_Torque(G_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(O_L);  // calculate the feedback
+    Calc_CTC_Torque(O_L);    // calculate the CTC torque
+
+    if(cnt_time <= step_time)
     {
       for (int i = 0; i < 6; i++)
       {
-        joint[11-i].torque = old_joint[11-i].torque*old_trajectory - G_R.torque_CTC(i)*new_trajectory;
+        joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
+        joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
+
+        left_torque[i] = zmp_factor*(-O_L.torque_CTC(5-i));
+        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
+        right_torque[i] = zmp_factor*(A_R.torque_CTC(i));
+        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
       }
     }
     else
     {
       for (int i = 0; i < 6; i++)
       {
-        joint[11-i].torque = -G_R.torque_CTC(i);
-        old_joint[11-i].torque = joint[11-i].torque;
+        joint[i].torque = zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i)));
+        joint[i+6].torque = zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i)));
+
+        old_joint[i].torque = joint[i].torque;
+        old_joint[i+6].torque = joint[i+6].torque;
+
+        left_torque[i] = zmp_factor*(-O_L.torque_CTC(5-i));
+        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
+        right_torque[i] = zmp_factor*(A_R.torque_CTC(i));
+        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
       }
     }
   }
-  else
+  else if(zmp_factor < 0) // slope to right
   {
-    right_cnt1 = 0;
-    // right_cnt2++;
+    plot_cnt = 2;
 
-    // double right_time = right_cnt2*inner_dt;
-    // double old_trajectory = 0.5*(cos(PI*(right_time/step_time)));
-    // double new_trajectory = 0.5*(1-cos(PI*(right_time/step_time)));
+    zmp_factor = -zmp_factor;
 
-    // // Target Pos, Pos Dot, Pos DDot
-    // A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = -body_quat.Euler()[1];  A_R.Des_X(4) = -body_quat.Euler()[0];  A_R.Des_X(5) = 0;
-    // A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
-    // A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
+    Calc_Feedback_Pos(A_L);  // calculate the feedback
+    Calc_CTC_Torque(A_L);    // calculate the CTC torque
 
-    // Calc_Feedback_Pos(A_R);  // calculate the feedback
-    // Calc_CTC_Torque(A_R);    // calculate the CTC torque
+    Calc_Feedback_Pos(G_R);  // calculate the feedback
+    Calc_CTC_Torque(G_R);    // calculate the CTC torque
 
-    // if(right_time <= step_time)
-    // {
-    //   for (int i = 0; i < 6; i++)
-    //   {
-    //     joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
-    //   }
-    // }
-    // else
-    // {
-    //   for (int i = 0; i < 6; i++)
-    //   {
-    //     joint[i+6].torque = A_R.torque_CTC(i);
-    //     old_joint[i+6].torque = joint[i+6].torque;
-    //   }
-    // }
+    Calc_Feedback_Pos(G_L);  // calculate the feedback
+    Calc_CTC_Torque(G_L);    // calculate the CTC torque
 
-    A_R.Q(0) = -A_R.Q(0);
-    A_R.Q(1) = -A_R.Q(1);
+    Calc_Feedback_Pos(O_R);  // calculate the feedback
+    Calc_CTC_Torque(O_R);    // calculate the CTC torque  
 
-    InverseDynamics(*A_R.rbdl_model, A_R.Q, VectorNd::Zero(9), VectorNd::Zero(9), A_R.Tau, NULL);
-    for (int i = 0; i < 6; i++)
+    if(cnt_time <= step_time)
     {
-      joint[i+6].torque = A_R.Tau(i+3);
-      old_joint[i+6].torque = joint[i+6].torque;
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
+        joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
+
+        left_torque[i] = zmp_factor*(A_L.torque_CTC(i));
+        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
+        right_torque[i] = zmp_factor*(-O_R.torque_CTC(5-i));
+        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
+      }
+    }
+    else
+    {
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i)));
+        joint[i+6].torque = zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i)));
+
+        old_joint[i].torque = joint[i].torque;
+        old_joint[i+6].torque = joint[i+6].torque;
+
+        left_torque[i] = zmp_factor*(A_L.torque_CTC(i));
+        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
+        right_torque[i] = zmp_factor*(-O_R.torque_CTC(5-i));
+        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
+      }
     }
   }
+  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
+  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", joint[6].torque,joint[7].torque,joint[8].torque,joint[9].torque,joint[10].torque,joint[11].torque);
+  fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[0],actual_joint_pos[1],actual_joint_pos[2],actual_joint_pos[3],actual_joint_pos[4],actual_joint_pos[5]);
+  fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[6],actual_joint_pos[7],actual_joint_pos[8],actual_joint_pos[9],actual_joint_pos[10],actual_joint_pos[11]);
+  fprintf(tmpdata6, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
+  left_torque[0],left_torque[1],left_torque[2],left_torque[3],left_torque[4],left_torque[5],
+  left_torque[6],left_torque[7],left_torque[8],left_torque[9],left_torque[10],left_torque[11]);
+  fprintf(tmpdata7, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
+  right_torque[0],right_torque[1],right_torque[2],right_torque[3],right_torque[4],right_torque[5],
+  right_torque[6],right_torque[7],right_torque[8],right_torque[9],right_torque[10],right_torque[11]);
 }
 
 void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 8
