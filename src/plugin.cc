@@ -769,6 +769,7 @@ void gazebo::SUBO3_plugin::UpdateAlgorithm() // 여러번 실행되는 함수
   EncoderRead(); //FK 푸는것도 포함.
 
   RBDL_variable_update();
+  Calc_ZMP();
 
   PostureGeneration(); // PostureGeneration 하위에 Trajectory 하위에 IK푸는것 포함.
   
@@ -923,6 +924,8 @@ void gazebo::SUBO3_plugin::FTSensorRead()
   R_Torque_E[0] = torque.X();
   R_Torque_E[1] = torque.Y();
   R_Torque_E[2] = torque.Z();
+
+  // cout << R_Force_E << endl << endl;
 }
 
 void gazebo::SUBO3_plugin::EncoderRead()
@@ -1041,8 +1044,8 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
   
   if(start_flag == 0)
   {
-    rbdl.Kp << 4000, 4000, 15000, 4000, 15000, 4000;
-    rbdl.Kv << 100, 100, 250, 100, 250, 100;
+    rbdl.Kp << 1000, 1000, 1000, 500, 500, 500;
+    rbdl.Kv << 10, 10, 10, 1, 1, 1;
   }
   
   //*********************Left Leg**********************//
@@ -1169,12 +1172,12 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 
   if(rbdl.num_leg == 0)
   {
-    rbdl.Kp << 3000, 3000, 5000, 5000, 3000, 500;
+    rbdl.Kp << 3000, 3000, 5000, 500, 500, 500;
     rbdl.Kv << 1, 1, 1, 1, 1, 1;
   }
   else if(rbdl.num_leg == 1)
   {
-    rbdl.Kp << 3000, 3000, 5000, 5000, 3000, 500;
+    rbdl.Kp << 3000, 3000, 5000, 500, 500, 500;
     rbdl.Kv << 1, 1, 1, 1, 1, 1;
     
     // rbdl.Kp << 15000, 15000, 30000, 3000, 3000, 3000;
@@ -1221,13 +1224,13 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 void gazebo::SUBO3_plugin::Calc_ZMP()
 {
   // Math::Vector3d Left_Foot_Pos, Right_Foot_Pos;
-  double X_L0, Y_L0, X_R0, Y_R0, X_ZMP, Y_ZMP, Y_ZMP_point, L_total, L_half, L_zmp;
+  double X_L0, Y_L0, X_R0, Y_R0, X_ZMP, Y_ZMP, Y_ZMP_point, L_total, L_half, L_zmp, factor;
 
-  X_L0 = left_info.pos[0] - 0;
-  Y_L0 = left_info.pos[1] - 0;
+  X_L0 = 0 - 0;
+  Y_L0 = 0.07 - 0;
 
-  X_R0 = right_info.pos[0] - 0;
-  Y_R0 = right_info.pos[1] - 0;
+  X_R0 = 0 - 0;
+  Y_R0 = -0.07 - 0;
 
   X_ZMP = ((X_R0*R_Force_E[2] + R_Torque_E[1]) + (X_L0*L_Force_E[2] + L_Torque_E[1])) / (R_Force_E[2] + L_Force_E[2]);
   Y_ZMP = ((Y_R0*R_Force_E[2] + R_Torque_E[0]) + (Y_L0*L_Force_E[2] + L_Torque_E[0])) / (R_Force_E[2] + L_Force_E[2]);
@@ -1235,15 +1238,12 @@ void gazebo::SUBO3_plugin::Calc_ZMP()
   Y_ZMP_point = (Y_L0 + Y_R0) / 2;
 
   L_total = (Y_L0) - (Y_R0);
-  // L_total = (Y_L0 - 0.05) - (Y_R0 + 0.05);
 
   L_half = L_total / 2;
   L_zmp = Y_ZMP - Y_ZMP_point;
 
-  zmp_factor = L_zmp/L_half;
-
-  if(zmp_factor <= -1) zmp_factor = -1;
-  else if(zmp_factor >= 1) zmp_factor = 1;
+  factor = L_zmp/L_half;
+  zmp_factor = (2 / (1 + exp(-factor))) - 1;  // sigmoid function
 
   fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", X_L0, Y_L0, X_R0, Y_R0, X_ZMP, Y_ZMP, Y_ZMP_point, L_total, L_half, L_zmp, zmp_factor);
   fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Force_E[2], R_Force_E[2], L_Torque_E[0], L_Torque_E[1], R_Torque_E[0], R_Torque_E[1]);
@@ -2139,11 +2139,6 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
   O_R.Des_XDot(0) = 0;  O_R.Des_XDot(1) = 0;  O_R.Des_XDot(2) = 0;  O_R.Des_XDot(3) = 0;  O_R.Des_XDot(4) = 0;  O_R.Des_XDot(5) = 0;
   O_R.Des_XDDot(0) = 0;  O_R.Des_XDDot(1) = 0;  O_R.Des_XDDot(2) = 0;  O_R.Des_XDDot(3) = 0;  O_R.Des_XDDot(4) = 0;  O_R.Des_XDDot(5) = 0;
 
-  // cout << "zmp_factor: " << zmp_factor << endl;
-  // cout << "base_info: " << base_info << endl << endl;
-
-  Calc_ZMP();
-
   if(zmp_factor >= 0) // slope to left
   {
     plot_cnt = 1;
@@ -2238,16 +2233,6 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
       }
     }
   }
-  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
-  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", joint[6].torque,joint[7].torque,joint[8].torque,joint[9].torque,joint[10].torque,joint[11].torque);
-  fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[0],actual_joint_pos[1],actual_joint_pos[2],actual_joint_pos[3],actual_joint_pos[4],actual_joint_pos[5]);
-  fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[6],actual_joint_pos[7],actual_joint_pos[8],actual_joint_pos[9],actual_joint_pos[10],actual_joint_pos[11]);
-  fprintf(tmpdata6, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
-  left_torque[0],left_torque[1],left_torque[2],left_torque[3],left_torque[4],left_torque[5],
-  left_torque[6],left_torque[7],left_torque[8],left_torque[9],left_torque[10],left_torque[11]);
-  fprintf(tmpdata7, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
-  right_torque[0],right_torque[1],right_torque[2],right_torque[3],right_torque[4],right_torque[5],
-  right_torque[6],right_torque[7],right_torque[8],right_torque[9],right_torque[10],right_torque[11]);
 }
 
 void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 8
@@ -2672,6 +2657,17 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
 
     // cout << "=====================================================" << endl;
   }
+
+  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
+  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", joint[6].torque,joint[7].torque,joint[8].torque,joint[9].torque,joint[10].torque,joint[11].torque);
+  fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[0],actual_joint_pos[1],actual_joint_pos[2],actual_joint_pos[3],actual_joint_pos[4],actual_joint_pos[5]);
+  fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[6],actual_joint_pos[7],actual_joint_pos[8],actual_joint_pos[9],actual_joint_pos[10],actual_joint_pos[11]);
+  fprintf(tmpdata6, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
+  left_torque[0],left_torque[1],left_torque[2],left_torque[3],left_torque[4],left_torque[5],
+  left_torque[6],left_torque[7],left_torque[8],left_torque[9],left_torque[10],left_torque[11]);
+  fprintf(tmpdata7, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
+  right_torque[0],right_torque[1],right_torque[2],right_torque[3],right_torque[4],right_torque[5],
+  right_torque[6],right_torque[7],right_torque[8],right_torque[9],right_torque[10],right_torque[11]);
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
