@@ -1172,12 +1172,12 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 
   if(rbdl.num_leg == 0)
   {
-    rbdl.Kp << 3000, 3000, 5000, 500, 500, 500;
+    rbdl.Kp << 1000, 1000, 1000, 500, 500, 500;
     rbdl.Kv << 1, 1, 1, 1, 1, 1;
   }
   else if(rbdl.num_leg == 1)
   {
-    rbdl.Kp << 3000, 3000, 5000, 500, 500, 500;
+    rbdl.Kp << 1000, 1000, 1000, 500, 500, 500;
     rbdl.Kv << 1, 1, 1, 1, 1, 1;
     
     // rbdl.Kp << 15000, 15000, 30000, 3000, 3000, 3000;
@@ -1766,8 +1766,8 @@ void gazebo::SUBO3_plugin::Init_Pos_Traj()  // 0
 
 void gazebo::SUBO3_plugin::Init_Pos_Traj2()  // 1
 {
-  Kp_q << 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200, 200;
-  Kd_q << 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1;
+  Kp_q << 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500;
+  Kd_q << 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5;
   step_time = 2; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
@@ -2104,7 +2104,7 @@ void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 6
 
 void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
 {
-  step_time = 1; //주기설정 (초) 변수
+  step_time = 0.5; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
