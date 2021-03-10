@@ -312,15 +312,9 @@ namespace gazebo
       IDLE = 0,
       IDLE2,
       GRAVITY_CONTROL,
-      CTC_CONTROL,
-      CTC_CONTROL_POS,
-      CTC_CONTROL_CONT_POS,
       GROUND_GRAVITY_CONTROL,
-      GROUND_CTC_CONTROL,
-      GROUND_CTC_CONTROL_POS,
-      GROUND_CTC_CONTROL_CONT_POS,
-      ONE_GROUND_CTC_CONTROL,
-      ONE_GROUND_CTC_CONTROL_POS,
+      STAND_CONTROL,
+      STAND_CONTROL_CONT_POS,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -358,30 +352,25 @@ namespace gazebo
     void Calc_Feedback_Pos(G_RBDL &rbdl);
     void Calc_CTC_Torque(G_RBDL &rbdl);
     void Calc_ZMP();
+
     void Init_Pos_Traj();
     void Init_Pos_Traj2();
     void Gravity_Cont();
-    void CTC_Control();
-    void CTC_Control_Pos();
-    void CTC_Control_Cont_Pos();
     void GROUND_Gravity_Cont();
-    void GROUND_CTC_Control();
-    void GROUND_CTC_Control_Pos();
-    void GROUND_CTC_Control_Cont_Pos();
-    void ONE_GROUND_CTC_Control();
-    void ONE_GROUND_CTC_Control_Pos();
+    void Stand_Control();
+    void Stand_Control_Cont_Pos();
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
 
     FILE* tmpdata0=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata0.txt","w");
     FILE* tmpdata1=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata1.txt","w");
-    FILE* tmpdata2=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata2.txt","w");
-    FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
-    FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
-    FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
-    FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
-    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    // FILE* tmpdata2=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata2.txt","w");
+    // FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
+    // FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
+    // FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
+    // FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
+    // FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
 
     void Print(void); //Print function
   };
@@ -910,7 +899,7 @@ void gazebo::SUBO3_plugin::FTSensorRead()
   L_Force_E[1] = force.Y();
   L_Force_E[2] = force.Z();
   L_Torque_E[0] = torque.X();
-  L_Torque_E[1] = torque.Y();
+  L_Torque_E[1] = -torque.Y();
   L_Torque_E[2] = torque.Z();
   
   // Force applied on right leg
@@ -922,7 +911,7 @@ void gazebo::SUBO3_plugin::FTSensorRead()
   R_Force_E[1] = force.Y();
   R_Force_E[2] = force.Z();
   R_Torque_E[0] = torque.X();
-  R_Torque_E[1] = torque.Y();
+  R_Torque_E[1] = -torque.Y();
   R_Torque_E[2] = torque.Z();
 
   // cout << R_Force_E << endl << endl;
@@ -1383,47 +1372,17 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
   else if (msg->data == 3) //button-6
   {
     cnt = 0;
-    CONTROL_MODE = CTC_CONTROL;
+    CONTROL_MODE = GROUND_GRAVITY_CONTROL;
   }
   else if (msg->data == 4) //button-6
   {
     cnt = 0;
-    CONTROL_MODE = CTC_CONTROL_POS;
+    CONTROL_MODE = STAND_CONTROL;
   }
   else if (msg->data == 5) //button-6
   {
     cnt = 0;
-    CONTROL_MODE = CTC_CONTROL_CONT_POS;
-  }
-  else if (msg->data == 6) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = GROUND_GRAVITY_CONTROL;
-  }
-  else if (msg->data == 7) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = GROUND_CTC_CONTROL;
-  }
-  else if (msg->data == 8) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = GROUND_CTC_CONTROL_POS;
-  }
-  else if (msg->data == 9) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = GROUND_CTC_CONTROL_CONT_POS;
-  }
-  else if (msg->data == 10) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = ONE_GROUND_CTC_CONTROL;
-  }
-  else if (msg->data == 11) //button-6
-  {
-    cnt = 0;
-    CONTROL_MODE = ONE_GROUND_CTC_CONTROL_POS;
+    CONTROL_MODE = STAND_CONTROL_CONT_POS;
   }
   else
   {
@@ -1590,51 +1549,21 @@ void gazebo::SUBO3_plugin::PostureGeneration()
 	  test_cnt++;
     Gravity_Cont();
   }
-  else if (CONTROL_MODE == CTC_CONTROL) 
-  {
-	  test_cnt++;
-    CTC_Control();
-  }
-  else if (CONTROL_MODE == CTC_CONTROL_POS) 
-  {
-	  test_cnt++;
-    CTC_Control_Pos();
-  }
-  else if (CONTROL_MODE == CTC_CONTROL_CONT_POS) 
-  {
-    test_cnt++;
-    CTC_Control_Cont_Pos();
-  }
   else if (CONTROL_MODE == GROUND_GRAVITY_CONTROL) 
   {
     test_cnt++;
     GROUND_Gravity_Cont();
   }
-  else if (CONTROL_MODE == GROUND_CTC_CONTROL) 
+  else if (CONTROL_MODE == STAND_CONTROL) 
   {
     test_cnt++;
-    GROUND_CTC_Control();
+    Stand_Control();
   }
-  else if (CONTROL_MODE == GROUND_CTC_CONTROL_POS) 
-  {
-	  test_cnt++;
-    GROUND_CTC_Control_Pos();
-  }
-  else if (CONTROL_MODE == GROUND_CTC_CONTROL_CONT_POS) 
+  else if (CONTROL_MODE == STAND_CONTROL_CONT_POS) 
   {
     test_cnt++;
-    GROUND_CTC_Control_Cont_Pos();
+    Stand_Control_Cont_Pos();
   }
-  else if (CONTROL_MODE == ONE_GROUND_CTC_CONTROL) 
-  {
-    test_cnt++;
-    ONE_GROUND_CTC_Control();
-  }
-  else if (CONTROL_MODE == ONE_GROUND_CTC_CONTROL_POS) 
-  {
-    test_cnt++;
-    ONE_GROUND_CTC_Control_Pos();
-  } 
 }
 
 void gazebo::SUBO3_plugin::RBDL_variable_update()
@@ -1834,259 +1763,7 @@ void gazebo::SUBO3_plugin::Gravity_Cont() // 2
   }
 }
 
-void gazebo::SUBO3_plugin::CTC_Control()  // 3
-{
-  step_time = 1; //주기설정 (초) 변수
-  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-  cnt++;
-  
-  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
-  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
-
-  // Target Pos, Pos Dot, Pos DDot
-  A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
-  A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
-  A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
-
-  A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
-  A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
-  A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
-
-  Calc_Feedback_Pos(A_L);  // calculate the feedback
-  Calc_Feedback_Pos(A_R);  // calculate the feedback
-  Calc_CTC_Torque(A_L);    // calculate the CTC torque
-  Calc_CTC_Torque(A_R);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = A_L.torque_CTC(i);
-      joint[i+6].torque = A_R.torque_CTC(i);
-      old_joint[i].torque = joint[i].torque;
-      old_joint[i+6].torque = joint[i+6].torque;
-    }
-  }
-}
-
-void gazebo::SUBO3_plugin::CTC_Control_Pos()  // 4
-{
-  step_time = 1; //주기설정 (초) 변수
-  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-  cnt++;
-  
-  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
-  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
-
-  A_L.Q(0) = 0;
-  A_L.Q(1) = 0;
-  A_R.Q(0) = 0;
-  A_R.Q(1) = 0;
-
-  // Target Pos, Pos Dot, Pos DDot
-  if(start_flag == 0)
-  {
-    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
-    A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
-    A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
-
-    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
-    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
-    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
-
-    A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
-    A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
-  }
-  else if(start_flag == 1)
-  {
-    chg_step_time = 2;
-    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-    chg_cnt++;
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    if(chg_cnt_time <= chg_step_time)
-    {
-      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
-      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
-      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
-
-      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
-      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
-      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
-    }
-    else
-    {
-      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
-      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
-
-      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
-      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
-
-      start_flag = 2;
-      chg_cnt = 0;
-    }
-  }
-
-  Calc_Feedback_Pos(A_L);  // calculate the feedback
-  Calc_Feedback_Pos(A_R);  // calculate the feedback
-  Calc_CTC_Torque(A_L);    // calculate the CTC torque
-  Calc_CTC_Torque(A_R);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = A_L.torque_CTC(i);
-      joint[i+6].torque = A_R.torque_CTC(i);
-      
-      old_joint[i].torque = joint[i].torque;
-      old_joint[i+6].torque = joint[i+6].torque;
-    }
-  }
-}
-
-void gazebo::SUBO3_plugin::CTC_Control_Cont_Pos() // 5
-{
-  step_time = 1; //주기설정 (초) 변수
-  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-  cnt++;
-  
-  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
-  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
-
-  A_L.Q(0) = 0;
-  A_L.Q(1) = 0;
-  A_R.Q(0) = 0;
-  A_R.Q(1) = 0;
-  
-  // Target Pos, Pos Dot, Pos DDot
-  if(start_flag == 0)
-  {
-    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
-    A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
-    A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
-
-    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
-    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
-    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
-
-    A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
-    A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
-  }
-  else if(start_flag == 1)
-  {
-    chg_step_time = 2;
-    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-    chg_cnt++;
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    
-    A_L.New_Des_X << 0, 0.07, -0.4, 0, 0, 0;
-    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
-    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    A_R.New_Des_X << 0, -0.07, -0.55, 0, 0, 0;
-    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
-    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-
-    if(chg_cnt_time <= chg_step_time)
-    {
-      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
-      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
-      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
-
-      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
-      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
-      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
-    }
-    else
-    {
-      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
-      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
-
-      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
-      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
-
-      start_flag = 2;
-      chg_cnt = 0;
-    }
-  }
-  else if(start_flag == 2)
-  {
-    chg_step_time = 2;
-    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-    chg_cnt++;
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    
-    A_L.New_Des_X << 0, 0.07, -0.55, 0, 0, 0;
-    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
-    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    A_R.New_Des_X << 0, -0.07, -0.4, 0, 0, 0;
-    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
-    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    
-    if(chg_cnt_time <= chg_step_time)
-    {
-      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
-      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
-      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
-
-      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
-      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
-      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
-    }
-    else
-    {
-      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
-      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
-
-      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
-      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
-
-      start_flag = 1;
-      chg_cnt = 0;
-    }
-  }
-
-  Calc_Feedback_Pos(A_L);  // calculate the feedback
-  Calc_Feedback_Pos(A_R);  // calculate the feedback
-  Calc_CTC_Torque(A_L);    // calculate the CTC torque
-  Calc_CTC_Torque(A_R);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = old_joint[i].torque*old_trajectory + A_L.torque_CTC(i)*new_trajectory;
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory + A_R.torque_CTC(i)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i].torque = A_L.torque_CTC(i);
-      joint[i+6].torque = A_R.torque_CTC(i);
-      old_joint[i].torque = joint[i].torque;
-      old_joint[i+6].torque = joint[i+6].torque;
-    }
-  }
-}
-
-void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 6
+void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 3
 {
   step_time = 1; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -2102,7 +1779,7 @@ void gazebo::SUBO3_plugin::GROUND_Gravity_Cont()  // 6
   }
 }
 
-void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
+void gazebo::SUBO3_plugin::Stand_Control() // 4
 {
   step_time = 0.5; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -2161,11 +1838,6 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
       {
         joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
         joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
-
-        left_torque[i] = zmp_factor*(-O_L.torque_CTC(5-i));
-        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
-        right_torque[i] = zmp_factor*(A_R.torque_CTC(i));
-        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
       }
     }
     else
@@ -2177,11 +1849,6 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
 
         old_joint[i].torque = joint[i].torque;
         old_joint[i+6].torque = joint[i+6].torque;
-
-        left_torque[i] = zmp_factor*(-O_L.torque_CTC(5-i));
-        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
-        right_torque[i] = zmp_factor*(A_R.torque_CTC(i));
-        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
       }
     }
   }
@@ -2209,11 +1876,6 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
       {
         joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
         joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
-
-        left_torque[i] = zmp_factor*(A_L.torque_CTC(i));
-        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
-        right_torque[i] = zmp_factor*(-O_R.torque_CTC(5-i));
-        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
       }
     }
     else
@@ -2225,19 +1887,14 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control() // 7
 
         old_joint[i].torque = joint[i].torque;
         old_joint[i+6].torque = joint[i+6].torque;
-
-        left_torque[i] = zmp_factor*(A_L.torque_CTC(i));
-        left_torque[i+6] = (1-zmp_factor)*(-G_L.torque_CTC(5-i));
-        right_torque[i] = zmp_factor*(-O_R.torque_CTC(5-i));
-        right_torque[i+6] = (1-zmp_factor)*(-G_R.torque_CTC(5-i));
       }
     }
   }
 }
 
-void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 8
+void gazebo::SUBO3_plugin::Stand_Control_Cont_Pos()  // 5
 {
-  step_time = 1; //주기설정 (초) 변수
+  step_time = 0.5; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
   
@@ -2247,94 +1904,46 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Pos() // 8
   // Target Pos, Pos Dot, Pos DDot
   if(start_flag == 0)
   {
-    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.509;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
-    G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
-    G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+    // Pelvis CTC
+    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+    A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
+    A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
 
+    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
+    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
+    
+    // Foot CTC
     G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.509;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
     G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
     G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
 
-    G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
-    G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
-  }
-  else if(start_flag == 1)
-  {
-    chg_step_time = 2;
-    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-    chg_cnt++;
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    if(chg_cnt_time <= chg_step_time)
-    {
-      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
-      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
-      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
-
-      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
-      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
-      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
-    }
-    else
-    {
-      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
-      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
-
-      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
-      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
-
-      start_flag = 2;
-      chg_cnt = 0;
-    }
-  }
-
-  Calc_Feedback_Pos(G_L);  // calculate the feedback
-  Calc_Feedback_Pos(G_R);  // calculate the feedback
-  Calc_CTC_Torque(G_L);    // calculate the CTC torque
-  Calc_CTC_Torque(G_R);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[5-i].torque = old_joint[5-i].torque*old_trajectory - G_L.torque_CTC(i)*new_trajectory;
-      joint[11-i].torque = old_joint[11-i].torque*old_trajectory - G_R.torque_CTC(i)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[5-i].torque = -G_L.torque_CTC(i);
-      joint[11-i].torque = -G_R.torque_CTC(i);
-
-      old_joint[5-i].torque = joint[5-i].torque;
-      old_joint[11-i].torque = joint[11-i].torque;
-    }
-  }
-}
-
-void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 9
-{
-  step_time = 1; //주기설정 (초) 변수
-  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-  cnt++;
-  
-  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
-  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
-
-  // Target Pos, Pos Dot, Pos DDot
-  if(start_flag == 0)
-  {
     G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.509;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
     G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
     G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+    
+    // One Foot CTC
+    O_L.Des_X(0) = 0;  O_L.Des_X(1) = 0;  O_L.Des_X(2) = 0.509;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
+    O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
+    O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
 
-    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.509;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
-    G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
-    G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+    O_R.Des_X(0) = 0;  O_R.Des_X(1) = 0;  O_R.Des_X(2) = 0.509;  O_R.Des_X(3) = 0;  O_R.Des_X(4) = 0;  O_R.Des_X(5) = 0;
+    O_R.Des_XDot(0) = 0;  O_R.Des_XDot(1) = 0;  O_R.Des_XDot(2) = 0;  O_R.Des_XDot(3) = 0;  O_R.Des_XDot(4) = 0;  O_R.Des_XDot(5) = 0;
+    O_R.Des_XDDot(0) = 0;  O_R.Des_XDDot(1) = 0;  O_R.Des_XDDot(2) = 0;  O_R.Des_XDDot(3) = 0;  O_R.Des_XDDot(4) = 0;  O_R.Des_XDDot(5) = 0;
 
+    A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+    A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
     G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
     G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+    O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+    O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
+
+    A_L.New_Des_X << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
 
     G_L.New_Des_X << 0, 0, 0, 0, 0, 0;
     G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
@@ -2342,6 +1951,13 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 9
     G_R.New_Des_X << 0, 0, 0, 0, 0, 0;
     G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
     G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
 
     chg_cnt = 0;
   }
@@ -2352,30 +1968,69 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 9
     chg_cnt++;
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
 
-    G_L.New_Des_X << 0.01, 0.05, 0.509, 0, 0, 0;
+    double Des_X = 0.05, Des_Y = 0, Des_Z = 0.509, Des_Roll = 0, Des_Pitch = 0, Des_Yaw = 0;
+
+    A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -Des_Z, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << -Des_X, -Des_Y - 0.07, -Des_Z, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
     G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
     G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    G_R.New_Des_X << 0.01, 0.05, 0.509, 0, 0, 0;
+    G_R.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
     G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
     G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
 
+    O_L.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
     if(chg_cnt_time <= chg_step_time)
     {
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
+
       G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
       G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
       G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
-
       G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
       G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
       G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+
+      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
+      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
+      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      O_R.Des_X = O_R.Old_Des_X + (O_R.New_Des_X - O_R.Old_Des_X)*change_trajectory;
+      O_R.Des_XDot = O_R.Old_Des_XDot + (O_R.New_Des_XDot - O_R.Old_Des_XDot)*change_trajectory;
+      O_R.Des_XDDot = O_R.Old_Des_XDDot + (O_R.New_Des_XDDot - O_R.Old_Des_XDDot)*change_trajectory;      
+
     }
     else
     {
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+
       G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
       G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
-
       G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
       G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
+      O_R.Des_X = O_R.New_Des_X; O_R.Des_XDot = O_R.New_Des_XDot; O_R.Des_XDDot = O_R.New_Des_XDDot;
+      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
 
       start_flag = 2;
       chg_cnt = 0;
@@ -2388,229 +2043,146 @@ void gazebo::SUBO3_plugin::GROUND_CTC_Control_Cont_Pos()  // 9
     chg_cnt++;
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
     
-    G_L.New_Des_X << -0.01, -0.05, 0.509, 0, 0, 0;
+    double Des_X = 0, Des_Y = 0, Des_Z = 0.509, Des_Roll = 0, Des_Pitch = 0, Des_Yaw = 0;
+
+    A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -Des_Z, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << -Des_X, -Des_Y - 0.07, -Des_Z, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
     G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
     G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    G_R.New_Des_X << -0.01, -0.05, 0.509, 0, 0, 0;
+    G_R.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
     G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
     G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << Des_X, Des_Y, Des_Z, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
     
     if(chg_cnt_time <= chg_step_time)
     {
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
+
       G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
       G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
       G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
-
       G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
       G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
       G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+
+      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
+      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
+      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      O_R.Des_X = O_R.Old_Des_X + (O_R.New_Des_X - O_R.Old_Des_X)*change_trajectory;
+      O_R.Des_XDot = O_R.Old_Des_XDot + (O_R.New_Des_XDot - O_R.Old_Des_XDot)*change_trajectory;
+      O_R.Des_XDDot = O_R.Old_Des_XDDot + (O_R.New_Des_XDDot - O_R.Old_Des_XDDot)*change_trajectory;
     }
     else
     {
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+
       G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
       G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
-
       G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
       G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
+      O_R.Des_X = O_R.New_Des_X; O_R.Des_XDot = O_R.New_Des_XDot; O_R.Des_XDDot = O_R.New_Des_XDDot;
+      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
 
       start_flag = 1;
       chg_cnt = 0;
     }
   }
 
-  Calc_Feedback_Pos(G_L);  // calculate the feedback
-  Calc_Feedback_Pos(G_R);  // calculate the feedback
-  Calc_CTC_Torque(G_L);    // calculate the CTC torque
-  Calc_CTC_Torque(G_R);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
+  if(zmp_factor >= 0) // slope to left
   {
-    for (int i = 0; i < 6; i++)
+    plot_cnt = 1;
+
+    Calc_Feedback_Pos(A_R);  // calculate the feedback
+    Calc_CTC_Torque(A_R);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_R);  // calculate the feedback
+    Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_L);  // calculate the feedback
+    Calc_CTC_Torque(G_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(O_L);  // calculate the feedback
+    Calc_CTC_Torque(O_L);    // calculate the CTC torque
+
+    if(cnt_time <= step_time)
     {
-      joint[5-i].torque = old_joint[5-i].torque*old_trajectory - G_L.torque_CTC(i)*new_trajectory;
-      joint[11-i].torque = old_joint[11-i].torque*old_trajectory - G_R.torque_CTC(i)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[5-i].torque = -G_L.torque_CTC(i);
-      joint[11-i].torque = -G_R.torque_CTC(i);
-
-      old_joint[5-i].torque = joint[5-i].torque;
-      old_joint[11-i].torque = joint[11-i].torque;
-    }
-  }
-}
-
-void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control() // 10
-{
-  step_time = 2; //주기설정 (초) 변수
-  step_time2 = 2;
-  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-  cnt++;
-  
-  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
-  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
-
-  double old_trajectory2 = 0.5*(cos(PI*(cnt_time/step_time2)));
-  double new_trajectory2 = 0.5*(1-cos(PI*(cnt_time/step_time2)));
-
-  A_L.Q(0) = 0;
-  A_L.Q(1) = 0;
-  A_R.Q(0) = 0;
-  A_R.Q(1) = 0;
-
-  // Target Pos, Pos Dot, Pos DDot
-  A_R.Des_X(0) = 0.0135;  A_R.Des_X(1) = -0.16;  A_R.Des_X(2) = -0.4;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
-  A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
-  A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
-
-  O_L.Des_X(0) = -0.015;  O_L.Des_X(1) = 0.0887;  O_L.Des_X(2) = 0.49;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
-  O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
-  O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
-
-  Calc_Feedback_Pos(A_R);  // calculate the feedback
-  Calc_CTC_Torque(A_R);    // calculate the CTC torque
-
-  Calc_Feedback_Pos(O_L);  // calculate the feedback
-  Calc_CTC_Torque(O_L);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[5-i].torque = old_joint[5-i].torque*old_trajectory - O_L.torque_CTC(i)*new_trajectory;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[5-i].torque = -O_L.torque_CTC(i);
-         
-      old_joint[5-i].torque = joint[5-i].torque;
-    }
-  }
-
-  if(cnt_time <= step_time2)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory2 + A_R.torque_CTC(i)*new_trajectory2;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i+6].torque = A_R.torque_CTC(i);
-            
-      old_joint[i+6].torque = joint[i+6].torque;
-    }
-  }
-}
-
-void gazebo::SUBO3_plugin::ONE_GROUND_CTC_Control_Pos() // 11
-{
-  step_time = 2; //주기설정 (초) 변수
-  step_time2 = 2;
-  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-  cnt++;
-  
-  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
-  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
-
-  double old_trajectory2 = 0.5*(cos(PI*(cnt_time/step_time2)));
-  double new_trajectory2 = 0.5*(1-cos(PI*(cnt_time/step_time2)));
-
-  A_L.Q(0) = 0;
-  A_L.Q(1) = 0;
-  A_R.Q(0) = 0;
-  A_R.Q(1) = 0;
-
-  // Target Pos, Pos Dot, Pos DDot
-  if(start_flag == 0)
-  {
-    A_R.Des_X(0) = 0.0135;  A_R.Des_X(1) = -0.16;  A_R.Des_X(2) = -0.4;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
-    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
-    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
-
-    O_L.Des_X(0) = -0.015;  O_L.Des_X(1) = 0.0887;  O_L.Des_X(2) = 0.49;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
-    O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
-    O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
-
-    O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
-
-    G_L.New_Des_X << 0, 0, 0, 0, 0, 0;
-    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
-    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-    G_R.New_Des_X << 0, 0, 0, 0, 0, 0;
-    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
-    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
-
-    chg_cnt = 0;
-  }
-  else if(start_flag == 1)
-  {
-    chg_step_time = 2;
-    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
-    chg_cnt++;
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    if(chg_cnt_time <= chg_step_time)
-    {
-      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
-      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
-      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
+        joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
+      }
     }
     else
     {
-      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
-      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i)));
+        joint[i+6].torque = zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i)));
 
-      start_flag = 2;
-      chg_cnt = 0;
+        old_joint[i].torque = joint[i].torque;
+        old_joint[i+6].torque = joint[i+6].torque;
+      }
     }
   }
-
-  Calc_Feedback_Pos(A_R);  // calculate the feedback
-  Calc_CTC_Torque(A_R);    // calculate the CTC torque
-
-  Calc_Feedback_Pos(O_L);  // calculate the feedback
-  Calc_CTC_Torque(O_L);    // calculate the CTC torque
-
-  if(cnt_time <= step_time)
+  else if(zmp_factor < 0) // slope to right
   {
-    for (int i = 0; i < 6; i++)
+    plot_cnt = 2;
+
+    zmp_factor = -zmp_factor;
+
+    Calc_Feedback_Pos(A_L);  // calculate the feedback
+    Calc_CTC_Torque(A_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_R);  // calculate the feedback
+    Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_L);  // calculate the feedback
+    Calc_CTC_Torque(G_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(O_R);  // calculate the feedback
+    Calc_CTC_Torque(O_R);    // calculate the CTC torque  
+
+    if(cnt_time <= step_time)
     {
-      joint[5-i].torque = old_joint[5-i].torque*old_trajectory - O_L.torque_CTC(i)*new_trajectory;
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
+        joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
+      }
     }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
+    else
     {
-      joint[5-i].torque = -O_L.torque_CTC(i);
-         
-      old_joint[5-i].torque = joint[5-i].torque;
-    }
-  }
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i)));
+        joint[i+6].torque = zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i)));
 
-  if(cnt_time <= step_time2)
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i+6].torque = old_joint[i+6].torque*old_trajectory2 + A_R.torque_CTC(i)*new_trajectory2;
-    }
-  }
-  else
-  {
-    for (int i = 0; i < 6; i++)
-    {
-      joint[i+6].torque = A_R.torque_CTC(i);
-            
-      old_joint[i+6].torque = joint[i+6].torque;
+        old_joint[i].torque = joint[i].torque;
+        old_joint[i+6].torque = joint[i+6].torque;
+      }
     }
   }
 }
@@ -2619,55 +2191,44 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
 {
   if(CONTROL_MODE != IDLE)
   {
-    // cout << "Control Mode Num: " << CONTROL_MODE << endl;
+    cout << "Control Mode Num: " << CONTROL_MODE << endl;
 
-    // cout << "------------------------------------------------------" << endl;
-    // cout << "|                    Joint Angle                     |" << endl;
-    // cout << "------------------------------------------------------" << endl;
-    // cout << "Left Pelvis Yaw: " << actual_joint_pos[0]*rad2deg << endl;
-    // cout << "Left Pelvis Roll: " << actual_joint_pos[1]*rad2deg << endl;
-    // cout << "Left Pelvis Pitch: " << actual_joint_pos[2]*rad2deg << endl;
-    // cout << "Left Knee Pitch: " << actual_joint_pos[3]*rad2deg << endl;
-    // cout << "Left Ankle Pitch: " << actual_joint_pos[4]*rad2deg << endl;
-    // cout << "Left Ankle Roll: " << actual_joint_pos[5]*rad2deg << endl << endl;
+    cout << "------------------------------------------------------" << endl;
+    cout << "|                    Joint Angle                     |" << endl;
+    cout << "------------------------------------------------------" << endl;
+    cout << "Left Pelvis Yaw: " << actual_joint_pos[0]*rad2deg << endl;
+    cout << "Left Pelvis Roll: " << actual_joint_pos[1]*rad2deg << endl;
+    cout << "Left Pelvis Pitch: " << actual_joint_pos[2]*rad2deg << endl;
+    cout << "Left Knee Pitch: " << actual_joint_pos[3]*rad2deg << endl;
+    cout << "Left Ankle Pitch: " << actual_joint_pos[4]*rad2deg << endl;
+    cout << "Left Ankle Roll: " << actual_joint_pos[5]*rad2deg << endl << endl;
 
-    // cout << "Right Pelvis Yaw: " << actual_joint_pos[6]*rad2deg << endl;
-    // cout << "Right Pelvis Roll: " << actual_joint_pos[7]*rad2deg << endl;
-    // cout << "Right Pelvis Pitch: " << actual_joint_pos[8]*rad2deg << endl;
-    // cout << "Right Knee Pitch: " << actual_joint_pos[9]*rad2deg << endl;
-    // cout << "Right Ankle Pitch: " << actual_joint_pos[10]*rad2deg << endl;
-    // cout << "Right Ankle Roll: " << actual_joint_pos[11]*rad2deg << endl << endl;
+    cout << "Right Pelvis Yaw: " << actual_joint_pos[6]*rad2deg << endl;
+    cout << "Right Pelvis Roll: " << actual_joint_pos[7]*rad2deg << endl;
+    cout << "Right Pelvis Pitch: " << actual_joint_pos[8]*rad2deg << endl;
+    cout << "Right Knee Pitch: " << actual_joint_pos[9]*rad2deg << endl;
+    cout << "Right Ankle Pitch: " << actual_joint_pos[10]*rad2deg << endl;
+    cout << "Right Ankle Roll: " << actual_joint_pos[11]*rad2deg << endl << endl;
 
-    // cout << "------------------------------------------------------" << endl;
-    // cout << "|                    Joint Torque                    |" << endl;
-    // cout << "------------------------------------------------------" << endl;
-    // cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
-    // cout << "Left Pelvis Roll: " << joint[1].torque << endl;
-    // cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
-    // cout << "Left Knee Pitch: " << joint[3].torque << endl;
-    // cout << "Left Ankle Pitch: " << joint[4].torque << endl;
-    // cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
+    cout << "------------------------------------------------------" << endl;
+    cout << "|                    Joint Torque                    |" << endl;
+    cout << "------------------------------------------------------" << endl;
+    cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
+    cout << "Left Pelvis Roll: " << joint[1].torque << endl;
+    cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
+    cout << "Left Knee Pitch: " << joint[3].torque << endl;
+    cout << "Left Ankle Pitch: " << joint[4].torque << endl;
+    cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
 
-    // cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
-    // cout << "Right Pelvis Roll: " << joint[7].torque << endl;
-    // cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
-    // cout << "Right Knee Pitch: " << joint[9].torque << endl;
-    // cout << "Right Ankle Pitch: " << joint[10].torque << endl;
-    // cout << "Right Ankle Roll: " << joint[11].torque << endl << endl;
+    cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
+    cout << "Right Pelvis Roll: " << joint[7].torque << endl;
+    cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
+    cout << "Right Knee Pitch: " << joint[9].torque << endl;
+    cout << "Right Ankle Pitch: " << joint[10].torque << endl;
+    cout << "Right Ankle Roll: " << joint[11].torque << endl << endl;
 
-    // cout << "=====================================================" << endl;
+    cout << "=====================================================" << endl;
   }
-
-  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", joint[0].torque,joint[1].torque,joint[2].torque,joint[3].torque,joint[4].torque,joint[5].torque);
-  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", joint[6].torque,joint[7].torque,joint[8].torque,joint[9].torque,joint[10].torque,joint[11].torque);
-  fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[0],actual_joint_pos[1],actual_joint_pos[2],actual_joint_pos[3],actual_joint_pos[4],actual_joint_pos[5]);
-  fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", actual_joint_pos[6],actual_joint_pos[7],actual_joint_pos[8],actual_joint_pos[9],actual_joint_pos[10],actual_joint_pos[11]);
-  fprintf(tmpdata6, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
-  left_torque[0],left_torque[1],left_torque[2],left_torque[3],left_torque[4],left_torque[5],
-  left_torque[6],left_torque[7],left_torque[8],left_torque[9],left_torque[10],left_torque[11]);
-  fprintf(tmpdata7, "%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", plot_cnt,
-  right_torque[0],right_torque[1],right_torque[2],right_torque[3],right_torque[4],right_torque[5],
-  right_torque[6],right_torque[7],right_torque[8],right_torque[9],right_torque[10],right_torque[11]);
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
