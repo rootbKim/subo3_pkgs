@@ -8,9 +8,8 @@ tmpdata3 = readmatrix("tmpdata3.txt");
 tmpdata4 = readmatrix("tmpdata4.txt");
 tmpdata5 = readmatrix("tmpdata5.txt");
 tmpdata6 = readmatrix("tmpdata6.txt");
-tmpdata7 = readmatrix("tmpdata7.txt");
 
-S_total = min([length(tmpdata0),length(tmpdata1),length(tmpdata2),length(tmpdata3),length(tmpdata4),length(tmpdata5),length(tmpdata6),length(tmpdata7)]);
+S_total = min([length(tmpdata0),length(tmpdata1),length(tmpdata2),length(tmpdata3),length(tmpdata4),length(tmpdata5),length(tmpdata6)]);
 
 S = S_total;
 
@@ -22,7 +21,6 @@ tmpdata3 = tmpdata3(1:S,:);
 tmpdata4 = tmpdata4(1:S,:);
 tmpdata5 = tmpdata5(1:S,:);
 tmpdata6 = tmpdata6(1:S,:);
-tmpdata7 = tmpdata7(1:S,:);
 
 dt = 0.001;
 time = 1:1:S;
@@ -64,12 +62,6 @@ G_R_Des_X = tmpdata3;
 G_L_Foot_Pos = tmpdata4;
 G_R_Foot_Pos = tmpdata5;
 Global_Pos = tmpdata6;
-
-Foot_Angle = tmpdata7;
-L_Foot_Pitch = tmpdata7(:,1);
-L_Foot_Roll = tmpdata7(:,2);
-R_Foot_Pitch = tmpdata7(:,3);
-R_Foot_Roll = tmpdata7(:,4);
 
 fig = figure;
 subplot(2,2,1);
@@ -171,15 +163,3 @@ xlabel('Time [sec]','FontSize',14)
 ylabel('Pos [m] / [rad]','FontSize',14)
 plot(time, Global_Pos)
 legend("x", "y", "z", "rll", "pit", "yaw")
-
-subplot(2,2,4);
-hold on;
-grid on;
-box on;
-fig.Color = 'White';
-set(gca,'FontSize',14)
-title('FT Sensor','FontSize',16)
-xlabel('Time [sec]','FontSize',14)
-ylabel('Pos [m] / [rad]','FontSize',14)
-plot(time, L_Foot_Roll)
-% legend("x", "y", "z", "rll", "pit", "yaw")

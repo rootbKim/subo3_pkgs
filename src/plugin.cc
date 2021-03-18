@@ -78,10 +78,6 @@ unsigned int right_cnt1 = 0;
 unsigned int left_cnt2 = 0;
 unsigned int right_cnt2 = 0;
 
-unsigned int left_slope = 0;
-unsigned int right_slope = 0;
-
-unsigned int switch_flag = 0;
 //*************** 확인용 변수*********************//
 unsigned int f_cnt = 0; //주기 확인용 
 unsigned int c_cnt = 0; // 시행횟수
@@ -102,7 +98,6 @@ typedef struct Air_rbdl_model_
 typedef struct Ground_rbdl_model_
 {
   int num_leg = 0;
-  int left_right = 0;
   Model* rbdl_model = new Model();
   VectorNd Q, QDot, QDDot, prevQ, prevQDot, Tau, Foot_Pos, Foot_Pos_dot, Des_X, Des_XDot, Des_XDDot, torque_CTC, Old_Des_X, Old_Des_XDot, Old_Des_XDDot, New_Des_X, New_Des_XDot, New_Des_XDDot, Kp, Kv;
   MatrixNd A_Jacobian, prev_A_Jacobian, A_Jacobian_dot, Inv_A_Jacobian;
@@ -441,9 +436,6 @@ void gazebo::SUBO3_plugin::RBDL_INIT()
   G_R.num_leg = 0;
   O_L.num_leg = 1;
   O_R.num_leg = 1;
-
-  O_L.left_right = 0; // left foot
-  O_R.left_right = 1; // right foot
 
   L_Air_Model(A_L);
   R_Air_Model(A_R);
@@ -1043,7 +1035,7 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
   
   if(start_flag == 0)
   {
-    rbdl.Kp << 1000, 1000, 1000, 1000, 1000, 1000;
+    rbdl.Kp << 2000, 2000, 2000, 1000, 1000, 1000;
     rbdl.Kv << 10, 10, 10, 10, 10, 10;
   }
   
@@ -1171,24 +1163,13 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 
   if(rbdl.num_leg == 0)
   {
-    rbdl.Kp << 1500, 1500, 1500, 1000, 1000, 1000;
-    rbdl.Kv << 1, 1, 1, 1, 1, 1;
+    rbdl.Kp << 3000, 3000, 3000, 1000, 1000, 1000;
+    rbdl.Kv << 5, 5, 5, 5, 5, 5;
   }
   else if(rbdl.num_leg == 1)
   {
-    rbdl.Kp << 1500, 1500, 1500, 1000, 1000, 1000;
-    rbdl.Kv << 1, 1, 1, 1, 1, 1;
-    
-    if(left_slope == 1 && rbdl.left_right == 0)
-    {
-      rbdl.Kp << 5000, 5000, 5000, 5000, 5000, 5000;
-      rbdl.Kv << 5, 5, 5, 5, 5, 5;
-    }
-    else if(right_slope == 1 && rbdl.left_right == 1)
-    {
-      rbdl.Kp << 5000, 5000, 5000, 5000, 5000, 5000;
-      rbdl.Kv << 5, 5, 5, 5, 5, 5;
-    }
+    rbdl.Kp << 3000, 3000, 3000, 1000, 1000, 1000;
+    rbdl.Kv << 5, 5, 5, 5, 5, 5;
   }
 
   //*********************Left Leg**********************//
@@ -1933,29 +1914,29 @@ void gazebo::SUBO3_plugin::Stand_Control_Cont_Pos()  // 5
   if(start_flag == 0)
   {
     // Pelvis CTC
-    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.509;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.49;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
     A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
     A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
 
-    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.509;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.49;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
     A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
     A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
     
     // Foot CTC
-    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.509;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.49;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
     G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
     G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
 
-    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.509;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.49;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
     G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
     G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
     
     // One Foot CTC
-    O_L.Des_X(0) = 0;  O_L.Des_X(1) = 0;  O_L.Des_X(2) = 0.509;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
+    O_L.Des_X(0) = 0;  O_L.Des_X(1) = 0;  O_L.Des_X(2) = 0.49;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
     O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
     O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
 
-    O_R.Des_X(0) = 0;  O_R.Des_X(1) = 0;  O_R.Des_X(2) = 0.509;  O_R.Des_X(3) = 0;  O_R.Des_X(4) = 0;  O_R.Des_X(5) = 0;
+    O_R.Des_X(0) = 0;  O_R.Des_X(1) = 0;  O_R.Des_X(2) = 0.49;  O_R.Des_X(3) = 0;  O_R.Des_X(4) = 0;  O_R.Des_X(5) = 0;
     O_R.Des_XDot(0) = 0;  O_R.Des_XDot(1) = 0;  O_R.Des_XDot(2) = 0;  O_R.Des_XDot(3) = 0;  O_R.Des_XDot(4) = 0;  O_R.Des_XDot(5) = 0;
     O_R.Des_XDDot(0) = 0;  O_R.Des_XDDot(1) = 0;  O_R.Des_XDDot(2) = 0;  O_R.Des_XDDot(3) = 0;  O_R.Des_XDDot(4) = 0;  O_R.Des_XDDot(5) = 0;
 
@@ -1996,7 +1977,7 @@ void gazebo::SUBO3_plugin::Stand_Control_Cont_Pos()  // 5
     chg_cnt++;
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
 
-    double Des_X = 0.05, Des_Y = 0, Des_Z = 0.509, Des_Roll = 0, Des_Pitch = 0, Des_Yaw = 0;
+    double Des_X = 0, Des_Y = 0.08, Des_Z = 0.49, Des_Roll = 0, Des_Pitch = 0, Des_Yaw = 0;
 
     A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -Des_Z, 0, 0, 0;
     A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
@@ -2071,7 +2052,7 @@ void gazebo::SUBO3_plugin::Stand_Control_Cont_Pos()  // 5
     chg_cnt++;
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
     
-    double Des_X = 0, Des_Y = 0, Des_Z = 0.509, Des_Roll = 0, Des_Pitch = 0, Des_Yaw = 0;
+    double Des_X = 0, Des_Y = -0.08, Des_Z = 0.49, Des_Roll = 0, Des_Pitch = 0, Des_Yaw = 0;
 
     A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -Des_Z, 0, 0, 0;
     A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
@@ -2220,8 +2201,6 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
   step_time = 0.5; //주기설정 (초) 변수
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
-  left_slope = 0;
-  right_slope = 0;
 
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
@@ -2367,8 +2346,6 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
     chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
     chg_cnt++;
 
-    left_slope = 1;
-
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
 
     double Des_X = 0, Des_Y = 0.09, L_Des_Z = 0.49, R_Des_Z = 0.4;
@@ -2444,19 +2421,7 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
     chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
     chg_cnt++;
 
-    if(R_Force_E[2] <= 50 && switch_flag == 0) // One Foot Stand State
-    {
-      left_slope = 1;
-    }
-    else  // Two Foot Stand State
-    {
-      switch_flag = 1;
-    }
-
-    if(switch_flag == 1)  cout << "success switch" << endl;
-
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));  
     double Des_X = 0, Des_Y = 0.09, Des_Z = 0.49;
 
     A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -Des_Z, 0, 0, 0;
@@ -2522,7 +2487,6 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
 
       start_flag = 4;
       chg_cnt = 0;
-      switch_flag = 0;
     }
   }
   else if(start_flag == 4)
@@ -2605,10 +2569,7 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
     chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
     chg_cnt++;
 
-    right_slope = 1;
-
     double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-
     double Des_X = 0, Des_Y = -0.09, L_Des_Z = 0.4, R_Des_Z = 0.49;
 
     A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -L_Des_Z, 0, 0, 0;
@@ -2682,19 +2643,7 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
     chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
     chg_cnt++;
 
-    if(L_Force_E[2] <= 50 && switch_flag == 0) // One Foot Stand State
-    {
-      right_slope = 1;
-    }
-    else  // Two Foot Stand State
-    {
-      switch_flag = 1;
-    }
-
-    if(switch_flag == 1)  cout << "success switch" << endl;
-
-    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
-    
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time))); 
     double Des_X = 0, Des_Y = -0.09, Des_Z = 0.49;
 
     A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -Des_Z, 0, 0, 0;
@@ -2760,7 +2709,6 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
 
       start_flag = 7;
       chg_cnt = 0;
-      switch_flag = 0;
     }
   }
   else if(start_flag == 7)
