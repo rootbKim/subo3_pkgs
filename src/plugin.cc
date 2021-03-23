@@ -1163,12 +1163,12 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
 
   if(rbdl.num_leg == 0)
   {
-    rbdl.Kp << 3000, 3000, 3000, 1000, 1000, 1000;
+    rbdl.Kp << 3000, 3000, 3000, 2000, 2000, 2000;
     rbdl.Kv << 5, 5, 5, 5, 5, 5;
   }
   else if(rbdl.num_leg == 1)
   {
-    rbdl.Kp << 3000, 3000, 3000, 1000, 1000, 1000;
+    rbdl.Kp << 3000, 3000, 3000, 2000, 2000, 2000;
     rbdl.Kv << 5, 5, 5, 5, 5, 5;
   }
 
