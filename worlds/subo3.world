@@ -24,8 +24,13 @@
     </include>
 
     <include>
+      <uri>model://box</uri>
+      <pose frame="">0 0 0 0 0 0</pose> <!-- 1.5=공중, 0.8=지면-->
+    </include>
+
+    <include>
       <uri>model://SUBO3</uri>
-	<pose frame="">0 0 0.8 0 0 0</pose> <!-- 1.5=공중, 0.8=지면-->
+	    <pose frame="">0 0 0.8 0 0 0</pose> <!-- 1.5=공중, 0.8=지면-->
       <plugin name="plugin" filename="libsubo3_pkgs.so"/>
     </include>
 
