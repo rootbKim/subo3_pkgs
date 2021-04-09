@@ -372,7 +372,20 @@ namespace gazebo
     FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
     FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
     FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
-    // FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
+    FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
+    FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
+    FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
+    FILE* tmpdata12=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata12.txt","w");
+    FILE* tmpdata13=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata13.txt","w");
+    FILE* tmpdata14=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata14.txt","w");
+    FILE* tmpdata15=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata15.txt","w");
+    FILE* tmpdata16=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata16.txt","w");
+    FILE* tmpdata17=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata17.txt","w");
+    FILE* tmpdata18=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata18.txt","w");
+    FILE* tmpdata19=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata19.txt","w");
+    FILE* tmpdata20=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata20.txt","w");
 
     void Print(void); //Print function
   };
@@ -1035,8 +1048,8 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(A_RBDL &rbdl)
   
   if(start_flag == 0)
   {
-    rbdl.Kp << 2000, 2000, 2000, 1000, 1000, 1000;
-    rbdl.Kv << 10, 10, 10, 10, 10, 10;
+    rbdl.Kp << 1000, 1000, 1000, 1000, 1000, 1000;
+    rbdl.Kv << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
   }
   
   //*********************Left Leg**********************//
@@ -1164,12 +1177,12 @@ void gazebo::SUBO3_plugin::Calc_CTC_Torque(G_RBDL &rbdl)
   if(rbdl.num_leg == 0)
   {
     rbdl.Kp << 3000, 3000, 3000, 2000, 2000, 2000;
-    rbdl.Kv << 5, 5, 5, 5, 5, 5;
+    rbdl.Kv << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
   }
   else if(rbdl.num_leg == 1)
   {
     rbdl.Kp << 3000, 3000, 3000, 2000, 2000, 2000;
-    rbdl.Kv << 5, 5, 5, 5, 5, 5;
+    rbdl.Kv << 0.1, 0.1, 0.1, 0.1, 0.1, 0.1;
   }
 
   //*********************Left Leg**********************//
@@ -1258,80 +1271,92 @@ void gazebo::SUBO3_plugin::torque_interpolation()
 void gazebo::SUBO3_plugin::jointController()
 {
   //Torque Limit 감속기 정격토크참조함.
-  for (unsigned int i = 0; i < 3; ++i)
-  {
-    if (joint[i].torque >= 8560*3)
-    {
-      joint[i].torque = 8560*3;
-      CONTROL_MODE = IDLE;
-      cout << "Break Joint Num: " << i << endl;
-    }
-    else if (joint[i].torque <= -8560*3)
-    {
-      joint[i].torque = -8560*3;
-      CONTROL_MODE = IDLE;
-      cout << "Break Joint Num: " << i << endl;
-    }
-  }
+  // for (unsigned int i = 0; i < 3; ++i)
+  // {
+  //   if (joint[i].torque >= 8560*3)
+  //   {
+  //     joint[i].torque = 8560*3;
+  //     CONTROL_MODE = IDLE;
+  //     cout << "Break Joint Num: " << i << endl;
+  //   }
+  //   else if (joint[i].torque <= -8560*3)
+  //   {
+  //     joint[i].torque = -8560*3;
+  //     CONTROL_MODE = IDLE;
+  //     cout << "Break Joint Num: " << i << endl;
+  //   }
+  // }
 
-  for (unsigned int i = 4; i < 9; ++i)
+  // for (unsigned int i = 4; i < 9; ++i)
+  // {
+  //   if (joint[i].torque >= 8560*3)
+  //   {
+  //     joint[i].torque = 8560*3;
+  //     CONTROL_MODE = IDLE;
+  //     cout << "Break Joint Num: " << i << endl;
+  //   }
+  //   else if (joint[i].torque <= -8560*3)
+  //   {
+  //     joint[i].torque = -8560*3;
+  //     CONTROL_MODE = IDLE;
+  //     cout << "Break Joint Num: " << i << endl;
+  //   }
+  // }
+  
+  // for (unsigned int i = 10; i < 12; ++i)
+  // {
+  //   if (joint[i].torque >= 8560*3)
+  //   {
+  //     joint[i].torque = 8560*3;
+  //     CONTROL_MODE = IDLE;
+  //     cout << "Break Joint Num: " << i << endl;
+  //   }
+  //   else if (joint[i].torque <= -8560*3)
+  //   {
+  //     joint[i].torque = -8560*3;
+  //     CONTROL_MODE = IDLE;
+  //     cout << "Break Joint Num: " << i << endl;
+  //   }
+  // }
+                  
+  // if (joint[3].torque >=12840*3)
+  // {
+  //   joint[3].torque = 12840*3;
+  //   CONTROL_MODE = IDLE;
+  //   cout << "Break Joint Num: " << 3 << endl;
+  // }
+  // else if (joint[3].torque <= -12840*3)
+  // {
+  //   joint[3].torque = -12840*3;
+  //   CONTROL_MODE = IDLE;
+  //   cout << "Break Joint Num: " << 3 << endl;
+  // }
+
+  // if (joint[9].torque >=12840*3)
+  // {
+  //   joint[9].torque = 12840*3;
+  //   CONTROL_MODE = IDLE;
+  //   cout << "Break Joint Num: " << 9 << endl;
+  // }
+  // else if (joint[9].torque <= -12840*3)
+  // {
+  //   joint[9].torque = -12840*3;
+  //   CONTROL_MODE = IDLE;
+  //   cout << "Break Joint Num: " << 9 << endl;
+  // }
+
+  for(int i = 0; i<12; i++)
   {
-    if (joint[i].torque >= 8560*3)
+    if(joint[i].torque >= 1000)
     {
-      joint[i].torque = 8560*3;
-      CONTROL_MODE = IDLE;
-      cout << "Break Joint Num: " << i << endl;
+      joint[i].torque = 1000;
     }
-    else if (joint[i].torque <= -8560*3)
+    else if(joint[i].torque <= -1000)
     {
-      joint[i].torque = -8560*3;
-      CONTROL_MODE = IDLE;
-      cout << "Break Joint Num: " << i << endl;
+      joint[i].torque = -1000;
     }
   }
   
-  for (unsigned int i = 10; i < 12; ++i)
-  {
-    if (joint[i].torque >= 8560*3)
-    {
-      joint[i].torque = 8560*3;
-      CONTROL_MODE = IDLE;
-      cout << "Break Joint Num: " << i << endl;
-    }
-    else if (joint[i].torque <= -8560*3)
-    {
-      joint[i].torque = -8560*3;
-      CONTROL_MODE = IDLE;
-      cout << "Break Joint Num: " << i << endl;
-    }
-  }
-                  
-  if (joint[3].torque >=12840*3)
-  {
-    joint[3].torque = 12840*3;
-    CONTROL_MODE = IDLE;
-    cout << "Break Joint Num: " << 3 << endl;
-  }
-  else if (joint[3].torque <= -12840*3)
-  {
-    joint[3].torque = -12840*3;
-    CONTROL_MODE = IDLE;
-    cout << "Break Joint Num: " << 3 << endl;
-  }
-
-  if (joint[9].torque >=12840*3)
-  {
-    joint[9].torque = 12840*3;
-    CONTROL_MODE = IDLE;
-    cout << "Break Joint Num: " << 9 << endl;
-  }
-  else if (joint[9].torque <= -12840*3)
-  {
-    joint[9].torque = -12840*3;
-    CONTROL_MODE = IDLE;
-    cout << "Break Joint Num: " << 9 << endl;
-  }
-
   //Applying torques
   this->L_PELVIS_YAW_JOINT->SetForce(2, joint[0].torque); //SUBO3.target_tor[0]);
   this->L_PELVIS_ROLL_JOINT->SetForce(0, joint[1].torque); //SUBO3.target_tor[1]);
@@ -1578,8 +1603,8 @@ void gazebo::SUBO3_plugin::PostureGeneration()
 void gazebo::SUBO3_plugin::RBDL_variable_update()
 {
   // Air variable
-  A_L.Q(0) = body_quat.Euler()[1];
-  A_L.Q(1) = body_quat.Euler()[0];
+  // A_L.Q(0) = body_quat.Euler()[1];
+  // A_L.Q(1) = body_quat.Euler()[0];
   A_L.Q(3) = actual_joint_pos[0];
   A_L.Q(4) = actual_joint_pos[1];
   A_L.Q(5) = actual_joint_pos[2];
@@ -1587,8 +1612,8 @@ void gazebo::SUBO3_plugin::RBDL_variable_update()
   A_L.Q(7) = actual_joint_pos[4];
   A_L.Q(8) = actual_joint_pos[5];
   
-  A_R.Q(0) = body_quat.Euler()[1];
-  A_R.Q(1) = body_quat.Euler()[0];
+  // A_R.Q(0) = body_quat.Euler()[1];
+  // A_R.Q(1) = body_quat.Euler()[0];
   A_R.Q(3) = actual_joint_pos[6];
   A_R.Q(4) = actual_joint_pos[7];
   A_R.Q(5) = actual_joint_pos[8];
@@ -1607,8 +1632,8 @@ void gazebo::SUBO3_plugin::RBDL_variable_update()
   A_R.prevQDot = A_R.QDot;
 
   // Two leg Ground variable
-  G_L.Q(0) = -L_foot_quat.Euler()[1];
-  G_L.Q(1) = -L_foot_quat.Euler()[0];
+  // G_L.Q(0) = -L_foot_quat.Euler()[1];
+  // G_L.Q(1) = -L_foot_quat.Euler()[0];
   G_L.Q(2) = -actual_joint_pos[5];
   G_L.Q(3) = -actual_joint_pos[4];
   G_L.Q(4) = -actual_joint_pos[3];
@@ -1616,8 +1641,8 @@ void gazebo::SUBO3_plugin::RBDL_variable_update()
   G_L.Q(6) = -actual_joint_pos[1];
   G_L.Q(7) = -actual_joint_pos[0];
 
-  G_R.Q(0) = -R_foot_quat.Euler()[1];
-  G_R.Q(1) = -R_foot_quat.Euler()[0];
+  // G_R.Q(0) = -R_foot_quat.Euler()[1];
+  // G_R.Q(1) = -R_foot_quat.Euler()[0];
   G_R.Q(2) = -actual_joint_pos[11];
   G_R.Q(3) = -actual_joint_pos[10];
   G_R.Q(4) = -actual_joint_pos[9];
@@ -1636,8 +1661,8 @@ void gazebo::SUBO3_plugin::RBDL_variable_update()
   G_R.prevQDot = G_R.QDot;
 
   // One leg Ground variable
-  O_L.Q(0) = -L_foot_quat.Euler()[1];
-  O_L.Q(1) = -L_foot_quat.Euler()[0];
+  // O_L.Q(0) = -L_foot_quat.Euler()[1];
+  // O_L.Q(1) = -L_foot_quat.Euler()[0];
   O_L.Q(2) = -actual_joint_pos[5];
   O_L.Q(3) = -actual_joint_pos[4];
   O_L.Q(4) = -actual_joint_pos[3];
@@ -1645,8 +1670,8 @@ void gazebo::SUBO3_plugin::RBDL_variable_update()
   O_L.Q(6) = -actual_joint_pos[1];
   O_L.Q(7) = -actual_joint_pos[0];
 
-  O_R.Q(0) = -R_foot_quat.Euler()[1];
-  O_R.Q(1) = -R_foot_quat.Euler()[0];
+  // O_R.Q(0) = -R_foot_quat.Euler()[1];
+  // O_R.Q(1) = -R_foot_quat.Euler()[0];
   O_R.Q(2) = -actual_joint_pos[11];
   O_R.Q(3) = -actual_joint_pos[10];
   O_R.Q(4) = -actual_joint_pos[9];
@@ -2905,11 +2930,28 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
     // cout << "=====================================================" << endl;
   }
 
-  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", G_L.Des_X(0), G_L.Des_X(1), G_L.Des_X(2), G_L.Des_X(3), G_L.Des_X(4), G_L.Des_X(5));
-  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", G_R.Des_X(0), G_R.Des_X(1), G_R.Des_X(2), G_R.Des_X(3), G_R.Des_X(4), G_R.Des_X(5));
+  fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos(0), A_L.Foot_Pos(1), A_L.Foot_Pos(2), A_L.Foot_Pos(3), A_L.Foot_Pos(4), A_L.Foot_Pos(5));
+  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", A_R.Foot_Pos(0), A_R.Foot_Pos(1), A_R.Foot_Pos(2), A_R.Foot_Pos(3), A_R.Foot_Pos(4), A_R.Foot_Pos(5));
   fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos(0), G_L.Foot_Pos(1), G_L.Foot_Pos(2), G_L.Foot_Pos(3), G_L.Foot_Pos(4), G_L.Foot_Pos(5));
   fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", G_R.Foot_Pos(0), G_R.Foot_Pos(1), G_R.Foot_Pos(2), G_R.Foot_Pos(3), G_R.Foot_Pos(4), G_R.Foot_Pos(5));
-  fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", base_info.pos.x, base_info.pos.y, base_info.pos.z, body_quat.Euler()[0], body_quat.Euler()[1], body_quat.Euler()[2]);
+  fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos(0), O_L.Foot_Pos(1), O_L.Foot_Pos(2), O_L.Foot_Pos(3), O_L.Foot_Pos(4), O_L.Foot_Pos(5));
+  fprintf(tmpdata7, "%f,%f,%f,%f,%f,%f\n", O_R.Foot_Pos(0), O_R.Foot_Pos(1), O_R.Foot_Pos(2), O_R.Foot_Pos(3), O_R.Foot_Pos(4), O_R.Foot_Pos(5));
+
+  fprintf(tmpdata8, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos_dot(0), A_L.Foot_Pos_dot(1), A_L.Foot_Pos_dot(2), A_L.Foot_Pos_dot(3), A_L.Foot_Pos_dot(4), A_L.Foot_Pos_dot(5));
+  fprintf(tmpdata9, "%f,%f,%f,%f,%f,%f\n", A_R.Foot_Pos_dot(0), A_R.Foot_Pos_dot(1), A_R.Foot_Pos_dot(2), A_R.Foot_Pos_dot(3), A_R.Foot_Pos_dot(4), A_R.Foot_Pos_dot(5));
+  fprintf(tmpdata10, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos_dot(0), G_L.Foot_Pos_dot(1), G_L.Foot_Pos_dot(2), G_L.Foot_Pos_dot(3), G_L.Foot_Pos_dot(4), G_L.Foot_Pos_dot(5));
+  fprintf(tmpdata11, "%f,%f,%f,%f,%f,%f\n", G_R.Foot_Pos_dot(0), G_R.Foot_Pos_dot(1), G_R.Foot_Pos_dot(2), G_R.Foot_Pos_dot(3), G_R.Foot_Pos_dot(4), G_R.Foot_Pos_dot(5));
+  fprintf(tmpdata12, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos_dot(0), O_L.Foot_Pos_dot(1), O_L.Foot_Pos_dot(2), O_L.Foot_Pos_dot(3), O_L.Foot_Pos_dot(4), O_L.Foot_Pos_dot(5));
+  fprintf(tmpdata13, "%f,%f,%f,%f,%f,%f\n", O_R.Foot_Pos_dot(0), O_R.Foot_Pos_dot(1), O_R.Foot_Pos_dot(2), O_R.Foot_Pos_dot(3), O_R.Foot_Pos_dot(4), O_R.Foot_Pos_dot(5));
+
+  fprintf(tmpdata14, "%f,%f,%f,%f,%f,%f\n", A_L.torque_CTC(0), A_L.torque_CTC(1), A_L.torque_CTC(2), A_L.torque_CTC(3), A_L.torque_CTC(4), A_L.torque_CTC(5));
+  fprintf(tmpdata15, "%f,%f,%f,%f,%f,%f\n", A_R.torque_CTC(0), A_R.torque_CTC(1), A_R.torque_CTC(2), A_R.torque_CTC(3), A_R.torque_CTC(4), A_R.torque_CTC(5));
+  fprintf(tmpdata16, "%f,%f,%f,%f,%f,%f\n", G_L.torque_CTC(0), G_L.torque_CTC(1), G_L.torque_CTC(2), G_L.torque_CTC(3), G_L.torque_CTC(4), G_L.torque_CTC(5));
+  fprintf(tmpdata17, "%f,%f,%f,%f,%f,%f\n", G_R.torque_CTC(0), G_R.torque_CTC(1), G_R.torque_CTC(2), G_R.torque_CTC(3), G_R.torque_CTC(4), G_R.torque_CTC(5));
+  fprintf(tmpdata18, "%f,%f,%f,%f,%f,%f\n", O_L.torque_CTC(0), O_L.torque_CTC(1), O_L.torque_CTC(2), O_L.torque_CTC(3), O_L.torque_CTC(4), O_L.torque_CTC(5));
+  fprintf(tmpdata19, "%f,%f,%f,%f,%f,%f\n", O_R.torque_CTC(0), O_R.torque_CTC(1), O_R.torque_CTC(2), O_R.torque_CTC(3), O_R.torque_CTC(4), O_R.torque_CTC(5));
+
+  fprintf(tmpdata20, "%f,%f,%f,%f,%f,%f\n", base_info.pos.x, base_info.pos.y, base_info.pos.z, body_quat.Euler()[0], body_quat.Euler()[1], body_quat.Euler()[2]);
 
 }
 
