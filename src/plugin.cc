@@ -316,6 +316,7 @@ namespace gazebo
       STAND_CONTROL,
       STAND_CONTROL_CONT_POS,
       WALKING_IN_PLACE,
+      WALKING_IN_PLACE2,
     };
     
     enum ControlMode CONTROL_MODE;
@@ -361,6 +362,7 @@ namespace gazebo
     void Stand_Control();
     void Stand_Control_Cont_Pos();
     void Walking_in_place();
+    void Walking_in_place2();
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
@@ -1413,6 +1415,11 @@ void gazebo::SUBO3_plugin::Callback1(const std_msgs::Int32Ptr &msg)
     cnt = 0;
     CONTROL_MODE = WALKING_IN_PLACE;
   }
+  else if (msg->data == 7)
+  {
+    cnt = 0;
+    CONTROL_MODE = WALKING_IN_PLACE2;
+  }  
   else
   {
     cnt = 0;
@@ -1598,6 +1605,11 @@ void gazebo::SUBO3_plugin::PostureGeneration()
     test_cnt++;
     Walking_in_place();
   }
+  else if (CONTROL_MODE == WALKING_IN_PLACE2) 
+  {
+    test_cnt++;
+    Walking_in_place2();
+  }  
 }
 
 void gazebo::SUBO3_plugin::RBDL_variable_update()
@@ -2807,6 +2819,496 @@ void gazebo::SUBO3_plugin::Walking_in_place()  // 6
       O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
 
       start_flag = 2;
+      chg_cnt = 0;
+    }
+  }
+
+  if(zmp_factor >= 0) // slope to left
+  {
+    plot_cnt = 1;
+
+    Calc_Feedback_Pos(A_R);  // calculate the feedback
+    Calc_CTC_Torque(A_R);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_R);  // calculate the feedback
+    Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_L);  // calculate the feedback
+    Calc_CTC_Torque(G_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(O_L);  // calculate the feedback
+    Calc_CTC_Torque(O_L);    // calculate the CTC torque
+
+    if(cnt_time <= step_time)
+    {
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
+        joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
+      }
+    }
+    else
+    {
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = zmp_factor*(-O_L.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i)));
+        joint[i+6].torque = zmp_factor*(A_R.torque_CTC(i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i)));
+
+        old_joint[i].torque = joint[i].torque;
+        old_joint[i+6].torque = joint[i+6].torque;
+      }
+    }
+  }
+  else if(zmp_factor < 0) // slope to right
+  {
+    plot_cnt = 2;
+
+    zmp_factor = -zmp_factor;
+
+    Calc_Feedback_Pos(A_L);  // calculate the feedback
+    Calc_CTC_Torque(A_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_R);  // calculate the feedback
+    Calc_CTC_Torque(G_R);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(G_L);  // calculate the feedback
+    Calc_CTC_Torque(G_L);    // calculate the CTC torque
+
+    Calc_Feedback_Pos(O_R);  // calculate the feedback
+    Calc_CTC_Torque(O_R);    // calculate the CTC torque  
+
+    if(cnt_time <= step_time)
+    {
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = old_joint[i].torque*old_trajectory + (zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i))))*new_trajectory;
+        joint[i+6].torque = old_joint[i+6].torque*old_trajectory + (zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i))))*new_trajectory;
+      }
+    }
+    else
+    {
+      for (int i = 0; i < 6; i++)
+      {
+        joint[i].torque = zmp_factor*(A_L.torque_CTC(i)) + ((1-zmp_factor)*(-G_L.torque_CTC(5-i)));
+        joint[i+6].torque = zmp_factor*(-O_R.torque_CTC(5-i)) + ((1-zmp_factor)*(-G_R.torque_CTC(5-i)));
+
+        old_joint[i].torque = joint[i].torque;
+        old_joint[i+6].torque = joint[i+6].torque;
+      }
+    }
+  }
+}
+
+void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
+{
+  step_time = 0.5; //주기설정 (초) 변수
+  cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+  cnt++;
+
+  double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
+  double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
+
+  // Target Pos, Pos Dot, Pos DDot
+  if(start_flag == 0)
+  {
+    // Pelvis CTC
+    A_L.Des_X(0) = 0;  A_L.Des_X(1) = 0.07;  A_L.Des_X(2) = -0.49;  A_L.Des_X(3) = 0;  A_L.Des_X(4) = 0;  A_L.Des_X(5) = 0;
+    A_L.Des_XDot(0) = 0;  A_L.Des_XDot(1) = 0;  A_L.Des_XDot(2) = 0;  A_L.Des_XDot(3) = 0;  A_L.Des_XDot(4) = 0;  A_L.Des_XDot(5) = 0;
+    A_L.Des_XDDot(0) = 0;  A_L.Des_XDDot(1) = 0;  A_L.Des_XDDot(2) = 0;  A_L.Des_XDDot(3) = 0;  A_L.Des_XDDot(4) = 0;  A_L.Des_XDDot(5) = 0;
+
+    A_R.Des_X(0) = 0;  A_R.Des_X(1) = -0.07;  A_R.Des_X(2) = -0.49;  A_R.Des_X(3) = 0;  A_R.Des_X(4) = 0;  A_R.Des_X(5) = 0;
+    A_R.Des_XDot(0) = 0;  A_R.Des_XDot(1) = 0;  A_R.Des_XDot(2) = 0;  A_R.Des_XDot(3) = 0;  A_R.Des_XDot(4) = 0;  A_R.Des_XDot(5) = 0;
+    A_R.Des_XDDot(0) = 0;  A_R.Des_XDDot(1) = 0;  A_R.Des_XDDot(2) = 0;  A_R.Des_XDDot(3) = 0;  A_R.Des_XDDot(4) = 0;  A_R.Des_XDDot(5) = 0;
+    
+    // Foot CTC
+    G_R.Des_X(0) = 0;  G_R.Des_X(1) = 0;  G_R.Des_X(2) = 0.49;  G_R.Des_X(3) = 0;  G_R.Des_X(4) = 0;  G_R.Des_X(5) = 0;
+    G_R.Des_XDot(0) = 0;  G_R.Des_XDot(1) = 0;  G_R.Des_XDot(2) = 0;  G_R.Des_XDot(3) = 0;  G_R.Des_XDot(4) = 0;  G_R.Des_XDot(5) = 0;
+    G_R.Des_XDDot(0) = 0;  G_R.Des_XDDot(1) = 0;  G_R.Des_XDDot(2) = 0;  G_R.Des_XDDot(3) = 0;  G_R.Des_XDDot(4) = 0;  G_R.Des_XDDot(5) = 0;
+
+    G_L.Des_X(0) = 0;  G_L.Des_X(1) = 0;  G_L.Des_X(2) = 0.49;  G_L.Des_X(3) = 0;  G_L.Des_X(4) = 0;  G_L.Des_X(5) = 0;
+    G_L.Des_XDot(0) = 0;  G_L.Des_XDot(1) = 0;  G_L.Des_XDot(2) = 0;  G_L.Des_XDot(3) = 0;  G_L.Des_XDot(4) = 0;  G_L.Des_XDot(5) = 0;
+    G_L.Des_XDDot(0) = 0;  G_L.Des_XDDot(1) = 0;  G_L.Des_XDDot(2) = 0;  G_L.Des_XDDot(3) = 0;  G_L.Des_XDDot(4) = 0;  G_L.Des_XDDot(5) = 0;
+    
+    // One Foot CTC
+    O_L.Des_X(0) = 0;  O_L.Des_X(1) = 0;  O_L.Des_X(2) = 0.49;  O_L.Des_X(3) = 0;  O_L.Des_X(4) = 0;  O_L.Des_X(5) = 0;
+    O_L.Des_XDot(0) = 0;  O_L.Des_XDot(1) = 0;  O_L.Des_XDot(2) = 0;  O_L.Des_XDot(3) = 0;  O_L.Des_XDot(4) = 0;  O_L.Des_XDot(5) = 0;
+    O_L.Des_XDDot(0) = 0;  O_L.Des_XDDot(1) = 0;  O_L.Des_XDDot(2) = 0;  O_L.Des_XDDot(3) = 0;  O_L.Des_XDDot(4) = 0;  O_L.Des_XDDot(5) = 0;
+
+    O_R.Des_X(0) = 0;  O_R.Des_X(1) = 0;  O_R.Des_X(2) = 0.49;  O_R.Des_X(3) = 0;  O_R.Des_X(4) = 0;  O_R.Des_X(5) = 0;
+    O_R.Des_XDot(0) = 0;  O_R.Des_XDot(1) = 0;  O_R.Des_XDot(2) = 0;  O_R.Des_XDot(3) = 0;  O_R.Des_XDot(4) = 0;  O_R.Des_XDot(5) = 0;
+    O_R.Des_XDDot(0) = 0;  O_R.Des_XDDot(1) = 0;  O_R.Des_XDDot(2) = 0;  O_R.Des_XDDot(3) = 0;  O_R.Des_XDDot(4) = 0;  O_R.Des_XDDot(5) = 0;
+
+    A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+    A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+    G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+    G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+    O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+    O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
+
+    A_L.New_Des_X << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    chg_cnt = 0;
+  }
+  else if(start_flag == 1)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+
+    // chg_cnt_time이 0.5 일 때부터, leg_chg_cnt_time 이 0에서 1까지 증가함.
+    double leg_chg_cnt_time = (chg_cnt_time - (chg_step_time*0.5)) * 2;
+    if(leg_chg_cnt_time <= 0) leg_chg_cnt_time = 0;
+    
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    double leg_change_trajectory = 0.5*(1-cos(PI*(leg_chg_cnt_time/chg_step_time)));
+
+    double Des_X = 0, Des_Y = 0.09, L_Des_Z = 0.49, R_Des_Z = 0.49;
+    if(chg_cnt_time >= 0.5 * chg_step_time) R_Des_Z = 0.4;
+
+    A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -L_Des_Z, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << -Des_X, -Des_Y - 0.07, -R_Des_Z, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    if(chg_cnt_time <= chg_step_time)
+    {
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
+
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+
+      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
+      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
+      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      O_R.Des_X = O_R.Old_Des_X + (O_R.New_Des_X - O_R.Old_Des_X)*change_trajectory;
+      O_R.Des_XDot = O_R.Old_Des_XDot + (O_R.New_Des_XDot - O_R.Old_Des_XDot)*change_trajectory;
+      O_R.Des_XDDot = O_R.Old_Des_XDDot + (O_R.New_Des_XDDot - O_R.Old_Des_XDDot)*change_trajectory;      
+
+      if(chg_cnt_time >= 0.5 * chg_step_time)
+      {
+        A_R.Des_X(2) = A_R.Old_Des_X(2) + (A_R.New_Des_X(2) - A_R.Old_Des_X(2))*leg_change_trajectory;
+        G_R.Des_X(2) = G_R.Old_Des_X(2) + (G_R.New_Des_X(2) - G_R.Old_Des_X(2))*leg_change_trajectory;
+        O_R.Des_X(2) = O_R.Old_Des_X(2) + (O_R.New_Des_X(2) - O_R.Old_Des_X(2))*leg_change_trajectory;
+      }
+    }
+    else
+    {
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
+      O_R.Des_X = O_R.New_Des_X; O_R.Des_XDot = O_R.New_Des_XDot; O_R.Des_XDDot = O_R.New_Des_XDDot;
+      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
+
+      start_flag = 2;
+      chg_cnt = 0;
+    }
+  }
+  else if(start_flag == 2)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+
+    // chg_cnt_time이 0.5 일 때부터, leg_chg_cnt_time 이 0에서 1까지 증가함.
+    double leg_chg_cnt_time = chg_cnt_time * 2;
+    if(leg_chg_cnt_time >= chg_step_time) leg_chg_cnt_time = chg_step_time;
+    
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    double leg_change_trajectory = 0.5*(1-cos(PI*(leg_chg_cnt_time/chg_step_time)));
+
+    double Des_X = 0, Des_Y = 0, L_Des_Z = 0.49, R_Des_Z = 0.49;
+
+    A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -L_Des_Z, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << -Des_X, -Des_Y - 0.07, -R_Des_Z, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    if(chg_cnt_time <= chg_step_time)
+    {
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
+
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+
+      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
+      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
+      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      O_R.Des_X = O_R.Old_Des_X + (O_R.New_Des_X - O_R.Old_Des_X)*change_trajectory;
+      O_R.Des_XDot = O_R.Old_Des_XDot + (O_R.New_Des_XDot - O_R.Old_Des_XDot)*change_trajectory;
+      O_R.Des_XDDot = O_R.Old_Des_XDDot + (O_R.New_Des_XDDot - O_R.Old_Des_XDDot)*change_trajectory;      
+
+      A_R.Des_X(2) = A_R.Old_Des_X(2) + (A_R.New_Des_X(2) - A_R.Old_Des_X(2))*leg_change_trajectory;
+      G_R.Des_X(2) = G_R.Old_Des_X(2) + (G_R.New_Des_X(2) - G_R.Old_Des_X(2))*leg_change_trajectory;
+      O_R.Des_X(2) = O_R.Old_Des_X(2) + (O_R.New_Des_X(2) - O_R.Old_Des_X(2))*leg_change_trajectory;
+    }
+    else
+    {
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
+      O_R.Des_X = O_R.New_Des_X; O_R.Des_XDot = O_R.New_Des_XDot; O_R.Des_XDDot = O_R.New_Des_XDDot;
+      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
+
+      start_flag = 3;
+      chg_cnt = 0;
+    }
+  }
+    else if(start_flag == 3)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+
+    // chg_cnt_time이 0.5 일 때부터, leg_chg_cnt_time 이 0에서 1까지 증가함.
+    double leg_chg_cnt_time = (chg_cnt_time - (chg_step_time*0.5)) * 2;
+    if(leg_chg_cnt_time <= 0) leg_chg_cnt_time = 0;
+    
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    double leg_change_trajectory = 0.5*(1-cos(PI*(leg_chg_cnt_time/chg_step_time)));
+
+    double Des_X = 0, Des_Y = -0.09, L_Des_Z = 0.49, R_Des_Z = 0.49;
+    if(chg_cnt_time >= 0.5 * chg_step_time) L_Des_Z = 0.4;
+
+    A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -L_Des_Z, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << -Des_X, -Des_Y - 0.07, -R_Des_Z, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    if(chg_cnt_time <= chg_step_time)
+    {
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
+
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+
+      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
+      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
+      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      O_R.Des_X = O_R.Old_Des_X + (O_R.New_Des_X - O_R.Old_Des_X)*change_trajectory;
+      O_R.Des_XDot = O_R.Old_Des_XDot + (O_R.New_Des_XDot - O_R.Old_Des_XDot)*change_trajectory;
+      O_R.Des_XDDot = O_R.Old_Des_XDDot + (O_R.New_Des_XDDot - O_R.Old_Des_XDDot)*change_trajectory;      
+
+      if(chg_cnt_time >= 0.5 * chg_step_time)
+      {
+        A_L.Des_X(2) = A_L.Old_Des_X(2) + (A_L.New_Des_X(2) - A_L.Old_Des_X(2))*leg_change_trajectory;
+        G_L.Des_X(2) = G_L.Old_Des_X(2) + (G_L.New_Des_X(2) - G_L.Old_Des_X(2))*leg_change_trajectory;
+        O_L.Des_X(2) = O_L.Old_Des_X(2) + (O_L.New_Des_X(2) - O_L.Old_Des_X(2))*leg_change_trajectory;
+      }
+    }
+    else
+    {
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
+      O_R.Des_X = O_R.New_Des_X; O_R.Des_XDot = O_R.New_Des_XDot; O_R.Des_XDDot = O_R.New_Des_XDDot;
+      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
+
+      start_flag = 4;
+      chg_cnt = 0;
+    }
+  }
+  else if(start_flag == 4)
+  {
+    chg_step_time = 2;
+    chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
+    chg_cnt++;
+
+    // chg_cnt_time이 0.5 일 때부터, leg_chg_cnt_time 이 0에서 1까지 증가함.
+    double leg_chg_cnt_time = chg_cnt_time * 2;
+    if(leg_chg_cnt_time >= chg_step_time) leg_chg_cnt_time = chg_step_time;
+    
+    double change_trajectory = 0.5*(1-cos(PI*(chg_cnt_time/chg_step_time)));
+    double leg_change_trajectory = 0.5*(1-cos(PI*(leg_chg_cnt_time/chg_step_time)));
+
+    double Des_X = 0, Des_Y = 0, L_Des_Z = 0.49, R_Des_Z = 0.49;
+
+    A_L.New_Des_X << -Des_X, -Des_Y + 0.07, -L_Des_Z, 0, 0, 0;
+    A_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_X << -Des_X, -Des_Y - 0.07, -R_Des_Z, 0, 0, 0;
+    A_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    A_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    G_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    G_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    G_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    G_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    O_L.New_Des_X << Des_X, Des_Y, L_Des_Z, 0, 0, 0;
+    O_L.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_L.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_X << Des_X, Des_Y, R_Des_Z, 0, 0, 0;
+    O_R.New_Des_XDot << 0, 0, 0, 0, 0, 0;
+    O_R.New_Des_XDDot << 0, 0, 0, 0, 0, 0;
+
+    if(chg_cnt_time <= chg_step_time)
+    {
+      A_L.Des_X = A_L.Old_Des_X + (A_L.New_Des_X - A_L.Old_Des_X)*change_trajectory;
+      A_L.Des_XDot = A_L.Old_Des_XDot + (A_L.New_Des_XDot - A_L.Old_Des_XDot)*change_trajectory;
+      A_L.Des_XDDot = A_L.Old_Des_XDDot + (A_L.New_Des_XDDot - A_L.Old_Des_XDDot)*change_trajectory;
+      A_R.Des_X = A_R.Old_Des_X + (A_R.New_Des_X - A_R.Old_Des_X)*change_trajectory;
+      A_R.Des_XDot = A_R.Old_Des_XDot + (A_R.New_Des_XDot - A_R.Old_Des_XDot)*change_trajectory;
+      A_R.Des_XDDot = A_R.Old_Des_XDDot + (A_R.New_Des_XDDot - A_R.Old_Des_XDDot)*change_trajectory;
+
+      G_L.Des_X = G_L.Old_Des_X + (G_L.New_Des_X - G_L.Old_Des_X)*change_trajectory;
+      G_L.Des_XDot = G_L.Old_Des_XDot + (G_L.New_Des_XDot - G_L.Old_Des_XDot)*change_trajectory;
+      G_L.Des_XDDot = G_L.Old_Des_XDDot + (G_L.New_Des_XDDot - G_L.Old_Des_XDDot)*change_trajectory;
+      G_R.Des_X = G_R.Old_Des_X + (G_R.New_Des_X - G_R.Old_Des_X)*change_trajectory;
+      G_R.Des_XDot = G_R.Old_Des_XDot + (G_R.New_Des_XDot - G_R.Old_Des_XDot)*change_trajectory;
+      G_R.Des_XDDot = G_R.Old_Des_XDDot + (G_R.New_Des_XDDot - G_R.Old_Des_XDDot)*change_trajectory;
+
+      O_L.Des_X = O_L.Old_Des_X + (O_L.New_Des_X - O_L.Old_Des_X)*change_trajectory;
+      O_L.Des_XDot = O_L.Old_Des_XDot + (O_L.New_Des_XDot - O_L.Old_Des_XDot)*change_trajectory;
+      O_L.Des_XDDot = O_L.Old_Des_XDDot + (O_L.New_Des_XDDot - O_L.Old_Des_XDDot)*change_trajectory;
+      O_R.Des_X = O_R.Old_Des_X + (O_R.New_Des_X - O_R.Old_Des_X)*change_trajectory;
+      O_R.Des_XDot = O_R.Old_Des_XDot + (O_R.New_Des_XDot - O_R.Old_Des_XDot)*change_trajectory;
+      O_R.Des_XDDot = O_R.Old_Des_XDDot + (O_R.New_Des_XDDot - O_R.Old_Des_XDDot)*change_trajectory;      
+
+      A_L.Des_X(2) = A_L.Old_Des_X(2) + (A_L.New_Des_X(2) - A_L.Old_Des_X(2))*leg_change_trajectory;
+      G_L.Des_X(2) = G_L.Old_Des_X(2) + (G_L.New_Des_X(2) - G_L.Old_Des_X(2))*leg_change_trajectory;
+      O_L.Des_X(2) = O_L.Old_Des_X(2) + (O_L.New_Des_X(2) - O_L.Old_Des_X(2))*leg_change_trajectory;
+    }
+    else
+    {
+      A_L.Des_X = A_L.New_Des_X; A_L.Des_XDot = A_L.New_Des_XDot; A_L.Des_XDDot = A_L.New_Des_XDDot;
+      A_R.Des_X = A_R.New_Des_X; A_R.Des_XDot = A_R.New_Des_XDot; A_R.Des_XDDot = A_R.New_Des_XDDot;
+      A_L.Old_Des_X = A_L.Des_X; A_L.Old_Des_XDot = A_L.Des_XDot; A_L.Old_Des_XDDot = A_L.Des_XDDot;
+      A_R.Old_Des_X = A_R.Des_X; A_R.Old_Des_XDot = A_R.Des_XDot; A_R.Old_Des_XDDot = A_R.Des_XDDot;
+
+      G_L.Des_X = G_L.New_Des_X; G_L.Des_XDot = G_L.New_Des_XDot; G_L.Des_XDDot = G_L.New_Des_XDDot;
+      G_R.Des_X = G_R.New_Des_X; G_R.Des_XDot = G_R.New_Des_XDot; G_R.Des_XDDot = G_R.New_Des_XDDot;
+      G_L.Old_Des_X = G_L.Des_X; G_L.Old_Des_XDot = G_L.Des_XDot; G_L.Old_Des_XDDot = G_L.Des_XDDot;
+      G_R.Old_Des_X = G_R.Des_X; G_R.Old_Des_XDot = G_R.Des_XDot; G_R.Old_Des_XDDot = G_R.Des_XDDot;
+
+      O_L.Des_X = O_L.New_Des_X; O_L.Des_XDot = O_L.New_Des_XDot; O_L.Des_XDDot = O_L.New_Des_XDDot;
+      O_R.Des_X = O_R.New_Des_X; O_R.Des_XDot = O_R.New_Des_XDot; O_R.Des_XDDot = O_R.New_Des_XDDot;
+      O_L.Old_Des_X = O_L.Des_X; O_L.Old_Des_XDot = O_L.Des_XDot; O_L.Old_Des_XDDot = O_L.Des_XDDot;
+      O_R.Old_Des_X = O_R.Des_X; O_R.Old_Des_XDot = O_R.Des_XDot; O_R.Old_Des_XDDot = O_R.Des_XDDot;
+
+      start_flag = 1;
       chg_cnt = 0;
     }
   }
