@@ -217,6 +217,8 @@ namespace gazebo
     ignition::math::Quaterniond L_foot_quat;
     ignition::math::Quaterniond R_foot_quat;
 
+    double body_roll, body_pitch, L_foot_roll, L_foot_pitch, R_foot_roll, R_foot_pitch;
+
     // *************FT sensor variables ****************//
     physics::JointWrench wrench;
     ignition::math::Vector3d torque;
@@ -366,6 +368,33 @@ namespace gazebo
 
     VectorXd FK(VectorXd joint_pos_HS);
     VectorXd IK(VectorXd EP_pos);
+
+    /*FILE* tmpdata0=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata0.txt","w");
+    FILE* tmpdata1=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata1.txt","w");
+    FILE* tmpdata2=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata2.txt","w");
+    FILE* tmpdata3=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata3.txt","w");
+    FILE* tmpdata4=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata4.txt","w");
+    FILE* tmpdata5=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata5.txt","w");
+    FILE* tmpdata6=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata6.txt","w");
+    FILE* tmpdata7=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata7.txt","w");
+    FILE* tmpdata8=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata8.txt","w");
+    FILE* tmpdata9=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata9.txt","w");
+    FILE* tmpdata10=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata10.txt","w");
+    FILE* tmpdata11=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata11.txt","w");
+    FILE* tmpdata12=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata12.txt","w");
+    FILE* tmpdata13=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata13.txt","w");
+    FILE* tmpdata14=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata14.txt","w");
+    FILE* tmpdata15=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata15.txt","w");
+    FILE* tmpdata16=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata16.txt","w");
+    FILE* tmpdata17=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata17.txt","w");
+    FILE* tmpdata18=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata18.txt","w");
+    FILE* tmpdata19=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata19.txt","w");
+    FILE* tmpdata20=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata20.txt","w");
+    FILE* tmpdata21=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata21.txt","w");
+    FILE* tmpdata22=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata22.txt","w");
+    FILE* tmpdata23=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata23.txt","w");
+    FILE* tmpdata24=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata24.txt","w");
+    FILE* tmpdata25=fopen("/home/jiyong/catkin_ws/src/subo3_pkgs/MATLAB/tmpdata25.txt","w");*/
 
     void Print(void); //Print function
   };
@@ -882,6 +911,13 @@ void gazebo::SUBO3_plugin::IMUSensorRead()
   body_quat = this->BODY_IMU->Orientation();
   L_foot_quat = this->L_IMU->Orientation();
   R_foot_quat = this->R_IMU->Orientation();
+
+  body_roll = body_quat.Euler()[0];
+  body_pitch = body_quat.Euler()[1];
+  L_foot_roll = L_foot_quat.Euler()[0];
+  L_foot_pitch = L_foot_quat.Euler()[1];
+  R_foot_roll = R_foot_quat.Euler()[0];
+  R_foot_pitch = R_foot_quat.Euler()[1];
 }
 
 void gazebo::SUBO3_plugin::FTSensorRead()
@@ -1214,6 +1250,9 @@ void gazebo::SUBO3_plugin::Calc_ZMP()
 
   factor = L_zmp/L_half;
   zmp_factor = (2 / (1 + exp(-factor))) - 1;  // sigmoid function
+
+  // fprintf(tmpdata0, "%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n", X_L0, Y_L0, X_R0, Y_R0, X_ZMP, Y_ZMP, Y_ZMP_point, L_total, L_half, L_zmp, zmp_factor);
+  // fprintf(tmpdata1, "%f,%f,%f,%f,%f,%f\n", L_Force_E[2], R_Force_E[2], L_Torque_E[0], L_Torque_E[1], R_Torque_E[0], R_Torque_E[1]);
 }
 
 void gazebo::SUBO3_plugin::torque_interpolation()
@@ -1316,10 +1355,14 @@ void gazebo::SUBO3_plugin::jointController()
     if(joint[i].torque >= 1000)
     {
       joint[i].torque = 1000;
+      // CONTROL_MODE = IDLE;
+      // cout << "Break Joint Num: " << i << endl;
     }
     else if(joint[i].torque <= -1000)
     {
       joint[i].torque = -1000;
+      // CONTROL_MODE = IDLE;
+      // cout << "Break Joint Num: " << i << endl;
     }
   }
   
@@ -2869,6 +2912,8 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
 
+  double ka = 0.6;
+
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
 
@@ -3104,7 +3149,7 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
       chg_cnt = 0;
     }
   }
-    else if(start_flag == 3)
+  else if(start_flag == 3)
   {
     chg_step_time = 1;
     chg_cnt_time = chg_cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
@@ -3279,7 +3324,17 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
   
   if(zmp_factor >= 0) // slope to left
   {
-    plot_cnt = 1;
+    A_R.Des_X(1) = A_R.Des_X(1) - ka*(-A_R.Des_X(2))*body_roll;
+    A_R.Des_X(3) = A_R.Des_X(3) - ka*body_roll;
+
+    G_R.Des_X(1) = G_R.Des_X(1) + ka*G_R.Des_X(2)*R_foot_roll;
+    G_R.Des_X(3) = G_R.Des_X(3) - ka*R_foot_roll;
+
+    G_L.Des_X(1) = G_L.Des_X(1) + ka*G_L.Des_X(2)*L_foot_roll;
+    G_L.Des_X(3) = G_L.Des_X(3) - ka*L_foot_roll;
+
+    O_L.Des_X(1) = O_L.Des_X(1) + ka*O_L.Des_X(2)*L_foot_roll;
+    O_L.Des_X(3) = O_L.Des_X(3) - ka*L_foot_roll;
 
     Calc_Feedback_Pos(A_R);  // calculate the feedback
     Calc_CTC_Torque(A_R);    // calculate the CTC torque
@@ -3315,7 +3370,17 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
   }
   else if(zmp_factor < 0) // slope to right
   {
-    plot_cnt = 2;
+    A_L.Des_X(1) = A_L.Des_X(1) - ka*(-A_L.Des_X(2))*body_roll;
+    A_L.Des_X(3) = A_L.Des_X(3) - ka*body_roll;
+
+    G_L.Des_X(1) = G_L.Des_X(1) + ka*G_L.Des_X(2)*L_foot_roll;
+    G_L.Des_X(3) = G_L.Des_X(3) - ka*L_foot_roll;
+
+    G_R.Des_X(1) = G_R.Des_X(1) + ka*G_R.Des_X(2)*R_foot_roll;
+    G_R.Des_X(3) = G_R.Des_X(3) - ka*R_foot_roll;
+    
+    O_R.Des_X(1) = O_R.Des_X(1) + ka*O_R.Des_X(2)*R_foot_roll;
+    O_R.Des_X(3) = O_R.Des_X(3) - ka*R_foot_roll;
 
     zmp_factor = -zmp_factor;
 
@@ -3357,44 +3422,72 @@ void gazebo::SUBO3_plugin::Print() // 한 싸이클 돌때마다 데이터 플�
 {
   if(CONTROL_MODE != IDLE)
   {
-    cout << "Control Mode Num: " << CONTROL_MODE << endl;
+    // cout << "Control Mode Num: " << CONTROL_MODE << endl;
 
-    cout << "------------------------------------------------------" << endl;
-    cout << "|                    Joint Angle                     |" << endl;
-    cout << "------------------------------------------------------" << endl;
-    cout << "Left Pelvis Yaw: " << actual_joint_pos[0]*rad2deg << endl;
-    cout << "Left Pelvis Roll: " << actual_joint_pos[1]*rad2deg << endl;
-    cout << "Left Pelvis Pitch: " << actual_joint_pos[2]*rad2deg << endl;
-    cout << "Left Knee Pitch: " << actual_joint_pos[3]*rad2deg << endl;
-    cout << "Left Ankle Pitch: " << actual_joint_pos[4]*rad2deg << endl;
-    cout << "Left Ankle Roll: " << actual_joint_pos[5]*rad2deg << endl << endl;
+    // cout << "------------------------------------------------------" << endl;
+    // cout << "|                    Joint Angle                     |" << endl;
+    // cout << "------------------------------------------------------" << endl;
+    // cout << "Left Pelvis Yaw: " << actual_joint_pos[0]*rad2deg << endl;
+    // cout << "Left Pelvis Roll: " << actual_joint_pos[1]*rad2deg << endl;
+    // cout << "Left Pelvis Pitch: " << actual_joint_pos[2]*rad2deg << endl;
+    // cout << "Left Knee Pitch: " << actual_joint_pos[3]*rad2deg << endl;
+    // cout << "Left Ankle Pitch: " << actual_joint_pos[4]*rad2deg << endl;
+    // cout << "Left Ankle Roll: " << actual_joint_pos[5]*rad2deg << endl << endl;
 
-    cout << "Right Pelvis Yaw: " << actual_joint_pos[6]*rad2deg << endl;
-    cout << "Right Pelvis Roll: " << actual_joint_pos[7]*rad2deg << endl;
-    cout << "Right Pelvis Pitch: " << actual_joint_pos[8]*rad2deg << endl;
-    cout << "Right Knee Pitch: " << actual_joint_pos[9]*rad2deg << endl;
-    cout << "Right Ankle Pitch: " << actual_joint_pos[10]*rad2deg << endl;
-    cout << "Right Ankle Roll: " << actual_joint_pos[11]*rad2deg << endl << endl;
+    // cout << "Right Pelvis Yaw: " << actual_joint_pos[6]*rad2deg << endl;
+    // cout << "Right Pelvis Roll: " << actual_joint_pos[7]*rad2deg << endl;
+    // cout << "Right Pelvis Pitch: " << actual_joint_pos[8]*rad2deg << endl;
+    // cout << "Right Knee Pitch: " << actual_joint_pos[9]*rad2deg << endl;
+    // cout << "Right Ankle Pitch: " << actual_joint_pos[10]*rad2deg << endl;
+    // cout << "Right Ankle Roll: " << actual_joint_pos[11]*rad2deg << endl << endl;
 
-    cout << "------------------------------------------------------" << endl;
-    cout << "|                    Joint Torque                    |" << endl;
-    cout << "------------------------------------------------------" << endl;
-    cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
-    cout << "Left Pelvis Roll: " << joint[1].torque << endl;
-    cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
-    cout << "Left Knee Pitch: " << joint[3].torque << endl;
-    cout << "Left Ankle Pitch: " << joint[4].torque << endl;
-    cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
+    // cout << "------------------------------------------------------" << endl;
+    // cout << "|                    Joint Torque                    |" << endl;
+    // cout << "------------------------------------------------------" << endl;
+    // cout << "Left Pelvis Yaw: " << joint[0].torque << endl;
+    // cout << "Left Pelvis Roll: " << joint[1].torque << endl;
+    // cout << "Left Pelvis Pitch: " << joint[2].torque << endl;
+    // cout << "Left Knee Pitch: " << joint[3].torque << endl;
+    // cout << "Left Ankle Pitch: " << joint[4].torque << endl;
+    // cout << "Left Ankle Roll: " << joint[5].torque << endl << endl;
 
-    cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
-    cout << "Right Pelvis Roll: " << joint[7].torque << endl;
-    cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
-    cout << "Right Knee Pitch: " << joint[9].torque << endl;
-    cout << "Right Ankle Pitch: " << joint[10].torque << endl;
-    cout << "Right Ankle Roll: " << joint[11].torque << endl << endl;
+    // cout << "Right Pelvis Yaw: " << joint[6].torque << endl;
+    // cout << "Right Pelvis Roll: " << joint[7].torque << endl;
+    // cout << "Right Pelvis Pitch: " << joint[8].torque << endl;
+    // cout << "Right Knee Pitch: " << joint[9].torque << endl;
+    // cout << "Right Ankle Pitch: " << joint[10].torque << endl;
+    // cout << "Right Ankle Roll: " << joint[11].torque << endl << endl;
 
-    cout << "=====================================================" << endl;
+    // cout << "=====================================================" << endl;
   }
+
+  /*fprintf(tmpdata2, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos(0), A_L.Foot_Pos(1), A_L.Foot_Pos(2), A_L.Foot_Pos(3), A_L.Foot_Pos(4), A_L.Foot_Pos(5));
+  fprintf(tmpdata3, "%f,%f,%f,%f,%f,%f\n", A_R.Foot_Pos(0), A_R.Foot_Pos(1), A_R.Foot_Pos(2), A_R.Foot_Pos(3), A_R.Foot_Pos(4), A_R.Foot_Pos(5));
+  fprintf(tmpdata4, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos(0), G_L.Foot_Pos(1), G_L.Foot_Pos(2), G_L.Foot_Pos(3), G_L.Foot_Pos(4), G_L.Foot_Pos(5));
+  fprintf(tmpdata5, "%f,%f,%f,%f,%f,%f\n", G_R.Foot_Pos(0), G_R.Foot_Pos(1), G_R.Foot_Pos(2), G_R.Foot_Pos(3), G_R.Foot_Pos(4), G_R.Foot_Pos(5));
+  fprintf(tmpdata6, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos(0), O_L.Foot_Pos(1), O_L.Foot_Pos(2), O_L.Foot_Pos(3), O_L.Foot_Pos(4), O_L.Foot_Pos(5));
+  fprintf(tmpdata7, "%f,%f,%f,%f,%f,%f\n", O_R.Foot_Pos(0), O_R.Foot_Pos(1), O_R.Foot_Pos(2), O_R.Foot_Pos(3), O_R.Foot_Pos(4), O_R.Foot_Pos(5));
+
+  fprintf(tmpdata8, "%f,%f,%f,%f,%f,%f\n", A_L.Foot_Pos_dot(0), A_L.Foot_Pos_dot(1), A_L.Foot_Pos_dot(2), A_L.Foot_Pos_dot(3), A_L.Foot_Pos_dot(4), A_L.Foot_Pos_dot(5));
+  fprintf(tmpdata9, "%f,%f,%f,%f,%f,%f\n", A_R.Foot_Pos_dot(0), A_R.Foot_Pos_dot(1), A_R.Foot_Pos_dot(2), A_R.Foot_Pos_dot(3), A_R.Foot_Pos_dot(4), A_R.Foot_Pos_dot(5));
+  fprintf(tmpdata10, "%f,%f,%f,%f,%f,%f\n", G_L.Foot_Pos_dot(0), G_L.Foot_Pos_dot(1), G_L.Foot_Pos_dot(2), G_L.Foot_Pos_dot(3), G_L.Foot_Pos_dot(4), G_L.Foot_Pos_dot(5));
+  fprintf(tmpdata11, "%f,%f,%f,%f,%f,%f\n", G_R.Foot_Pos_dot(0), G_R.Foot_Pos_dot(1), G_R.Foot_Pos_dot(2), G_R.Foot_Pos_dot(3), G_R.Foot_Pos_dot(4), G_R.Foot_Pos_dot(5));
+  fprintf(tmpdata12, "%f,%f,%f,%f,%f,%f\n", O_L.Foot_Pos_dot(0), O_L.Foot_Pos_dot(1), O_L.Foot_Pos_dot(2), O_L.Foot_Pos_dot(3), O_L.Foot_Pos_dot(4), O_L.Foot_Pos_dot(5));
+  fprintf(tmpdata13, "%f,%f,%f,%f,%f,%f\n", O_R.Foot_Pos_dot(0), O_R.Foot_Pos_dot(1), O_R.Foot_Pos_dot(2), O_R.Foot_Pos_dot(3), O_R.Foot_Pos_dot(4), O_R.Foot_Pos_dot(5));
+
+  fprintf(tmpdata14, "%f,%f,%f,%f,%f,%f\n", A_L.torque_CTC(0), A_L.torque_CTC(1), A_L.torque_CTC(2), A_L.torque_CTC(3), A_L.torque_CTC(4), A_L.torque_CTC(5));
+  fprintf(tmpdata15, "%f,%f,%f,%f,%f,%f\n", A_R.torque_CTC(0), A_R.torque_CTC(1), A_R.torque_CTC(2), A_R.torque_CTC(3), A_R.torque_CTC(4), A_R.torque_CTC(5));
+  fprintf(tmpdata16, "%f,%f,%f,%f,%f,%f\n", G_L.torque_CTC(0), G_L.torque_CTC(1), G_L.torque_CTC(2), G_L.torque_CTC(3), G_L.torque_CTC(4), G_L.torque_CTC(5));
+  fprintf(tmpdata17, "%f,%f,%f,%f,%f,%f\n", G_R.torque_CTC(0), G_R.torque_CTC(1), G_R.torque_CTC(2), G_R.torque_CTC(3), G_R.torque_CTC(4), G_R.torque_CTC(5));
+  fprintf(tmpdata18, "%f,%f,%f,%f,%f,%f\n", O_L.torque_CTC(0), O_L.torque_CTC(1), O_L.torque_CTC(2), O_L.torque_CTC(3), O_L.torque_CTC(4), O_L.torque_CTC(5));
+  fprintf(tmpdata19, "%f,%f,%f,%f,%f,%f\n", O_R.torque_CTC(0), O_R.torque_CTC(1), O_R.torque_CTC(2), O_R.torque_CTC(3), O_R.torque_CTC(4), O_R.torque_CTC(5));
+
+  fprintf(tmpdata20, "%f,%f,%f,%f,%f,%f\n", A_L.Des_X(0), A_L.Des_X(1), A_L.Des_X(2), A_L.Des_X(3), A_L.Des_X(4), A_L.Des_X(5));
+  fprintf(tmpdata21, "%f,%f,%f,%f,%f,%f\n", A_R.Des_X(0), A_R.Des_X(1), A_R.Des_X(2), A_R.Des_X(3), A_R.Des_X(4), A_R.Des_X(5));
+  fprintf(tmpdata22, "%f,%f,%f,%f,%f,%f\n", G_L.Des_X(0), G_L.Des_X(1), G_L.Des_X(2), G_L.Des_X(3), G_L.Des_X(4), G_L.Des_X(5));
+  fprintf(tmpdata23, "%f,%f,%f,%f,%f,%f\n", G_R.Des_X(0), G_R.Des_X(1), G_R.Des_X(2), G_R.Des_X(3), G_R.Des_X(4), G_R.Des_X(5));
+  fprintf(tmpdata24, "%f,%f,%f,%f,%f,%f\n", O_L.Des_X(0), O_L.Des_X(1), O_L.Des_X(2), O_L.Des_X(3), O_L.Des_X(4), O_L.Des_X(5));
+  fprintf(tmpdata25, "%f,%f,%f,%f,%f,%f\n", O_R.Des_X(0), O_R.Des_X(1), O_R.Des_X(2), O_R.Des_X(3), O_R.Des_X(4), O_R.Des_X(5));*/
 }
 
 void gazebo::SUBO3_plugin::ROSMsgPublish()
