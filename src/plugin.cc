@@ -1355,14 +1355,14 @@ void gazebo::SUBO3_plugin::jointController()
     if(joint[i].torque >= 1000)
     {
       joint[i].torque = 1000;
-      // CONTROL_MODE = IDLE;
-      // cout << "Break Joint Num: " << i << endl;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
     else if(joint[i].torque <= -1000)
     {
       joint[i].torque = -1000;
-      // CONTROL_MODE = IDLE;
-      // cout << "Break Joint Num: " << i << endl;
+      CONTROL_MODE = IDLE;
+      cout << "Break Joint Num: " << i << endl;
     }
   }
   
@@ -2912,7 +2912,7 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
   cnt_time = cnt*inner_dt; // 한스텝의 시간 설정 dt = 0.001초 고정값
   cnt++;
 
-  double ka = 0.6;
+  double kr = 0.5, kp = 0.5;
 
   double old_trajectory = 0.5*(cos(PI*(cnt_time/step_time)));
   double new_trajectory = 0.5*(1-cos(PI*(cnt_time/step_time)));
@@ -3324,17 +3324,25 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
   
   if(zmp_factor >= 0) // slope to left
   {
-    A_R.Des_X(1) = A_R.Des_X(1) - ka*(-A_R.Des_X(2))*body_roll;
-    A_R.Des_X(3) = A_R.Des_X(3) - ka*body_roll;
+    A_R.Des_X(0) = A_R.Des_X(0) + kp*(-A_R.Des_X(2))*body_pitch;
+    A_R.Des_X(1) = A_R.Des_X(1) - kr*(-A_R.Des_X(2))*body_roll;
+    A_R.Des_X(3) = A_R.Des_X(3) - kr*body_roll;
+    A_R.Des_X(4) = A_R.Des_X(4) - kp*body_pitch;
 
-    G_R.Des_X(1) = G_R.Des_X(1) + ka*G_R.Des_X(2)*R_foot_roll;
-    G_R.Des_X(3) = G_R.Des_X(3) - ka*R_foot_roll;
+    G_R.Des_X(0) = G_R.Des_X(0) - kp*G_R.Des_X(2)*R_foot_pitch;
+    G_R.Des_X(1) = G_R.Des_X(1) + kr*G_R.Des_X(2)*R_foot_roll;
+    G_R.Des_X(3) = G_R.Des_X(3) - kr*R_foot_roll;
+    G_R.Des_X(4) = G_R.Des_X(4) - kp*R_foot_pitch;
 
-    G_L.Des_X(1) = G_L.Des_X(1) + ka*G_L.Des_X(2)*L_foot_roll;
-    G_L.Des_X(3) = G_L.Des_X(3) - ka*L_foot_roll;
+    G_L.Des_X(0) = G_L.Des_X(0) - kp*G_L.Des_X(2)*L_foot_pitch;
+    G_L.Des_X(1) = G_L.Des_X(1) + kr*G_L.Des_X(2)*L_foot_roll;
+    G_L.Des_X(3) = G_L.Des_X(3) - kr*L_foot_roll;
+    G_L.Des_X(4) = G_L.Des_X(4) - kp*L_foot_pitch;
 
-    O_L.Des_X(1) = O_L.Des_X(1) + ka*O_L.Des_X(2)*L_foot_roll;
-    O_L.Des_X(3) = O_L.Des_X(3) - ka*L_foot_roll;
+    O_L.Des_X(0) = O_L.Des_X(0) - kp*O_L.Des_X(2)*L_foot_pitch;
+    O_L.Des_X(1) = O_L.Des_X(1) + kr*O_L.Des_X(2)*L_foot_roll;
+    O_L.Des_X(3) = O_L.Des_X(3) - kr*L_foot_roll;
+    O_L.Des_X(4) = O_L.Des_X(4) - kp*L_foot_pitch;
 
     Calc_Feedback_Pos(A_R);  // calculate the feedback
     Calc_CTC_Torque(A_R);    // calculate the CTC torque
@@ -3370,17 +3378,25 @@ void gazebo::SUBO3_plugin::Walking_in_place2()  // 7
   }
   else if(zmp_factor < 0) // slope to right
   {
-    A_L.Des_X(1) = A_L.Des_X(1) - ka*(-A_L.Des_X(2))*body_roll;
-    A_L.Des_X(3) = A_L.Des_X(3) - ka*body_roll;
+    A_L.Des_X(0) = A_L.Des_X(0) + kp*(-A_L.Des_X(2))*body_pitch;
+    A_L.Des_X(1) = A_L.Des_X(1) - kr*(-A_L.Des_X(2))*body_roll;
+    A_L.Des_X(3) = A_L.Des_X(3) - kr*body_roll;
+    A_L.Des_X(4) = A_L.Des_X(4) - kp*body_pitch;
 
-    G_L.Des_X(1) = G_L.Des_X(1) + ka*G_L.Des_X(2)*L_foot_roll;
-    G_L.Des_X(3) = G_L.Des_X(3) - ka*L_foot_roll;
+    G_L.Des_X(0) = G_L.Des_X(0) - kp*G_L.Des_X(2)*L_foot_pitch;
+    G_L.Des_X(1) = G_L.Des_X(1) + kr*G_L.Des_X(2)*L_foot_roll;
+    G_L.Des_X(3) = G_L.Des_X(3) - kr*L_foot_roll;
+    G_L.Des_X(4) = G_L.Des_X(4) - kp*L_foot_pitch;
 
-    G_R.Des_X(1) = G_R.Des_X(1) + ka*G_R.Des_X(2)*R_foot_roll;
-    G_R.Des_X(3) = G_R.Des_X(3) - ka*R_foot_roll;
+    G_R.Des_X(0) = G_R.Des_X(0) - kp*G_R.Des_X(2)*R_foot_pitch;
+    G_R.Des_X(1) = G_R.Des_X(1) + kr*G_R.Des_X(2)*R_foot_roll;
+    G_R.Des_X(3) = G_R.Des_X(3) - kr*R_foot_roll;
+    G_R.Des_X(4) = G_R.Des_X(4) - kp*R_foot_pitch;
     
-    O_R.Des_X(1) = O_R.Des_X(1) + ka*O_R.Des_X(2)*R_foot_roll;
-    O_R.Des_X(3) = O_R.Des_X(3) - ka*R_foot_roll;
+    O_R.Des_X(0) = O_R.Des_X(0) - kp*O_R.Des_X(2)*R_foot_pitch;
+    O_R.Des_X(1) = O_R.Des_X(1) + kr*O_R.Des_X(2)*R_foot_roll;
+    O_R.Des_X(3) = O_R.Des_X(3) - kr*R_foot_roll;
+    O_R.Des_X(4) = O_R.Des_X(4) - kp*R_foot_pitch;
 
     zmp_factor = -zmp_factor;
 
